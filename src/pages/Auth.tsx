@@ -149,14 +149,14 @@ const Auth = () => {
               .from("profiles")
               .upsert(
                 {
-                  id: authData.user.id,
+                  user_id: authData.user.id,
                   email: email,
                   subscription_plan: codeValidation.planName,
                   subscription_started_at: new Date().toISOString(),
                   subscription_expires_at: expiresAt.toISOString(),
                   api_key: await generateApiKey(),
                 },
-                { onConflict: "id" }
+                { onConflict: "user_id" }
               );
 
             if (profileError) {
@@ -168,12 +168,12 @@ const Auth = () => {
               .from("profiles")
               .upsert(
                 {
-                  id: authData.user.id,
+                  user_id: authData.user.id,
                   email: email,
                   subscription_plan: "free",
                   api_key: await generateApiKey(),
                 },
-                { onConflict: "id" }
+                { onConflict: "user_id" }
               );
 
             if (profileError) {

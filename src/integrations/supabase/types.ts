@@ -16,119 +16,38 @@ export type Database = {
     Tables: {
       ad_checkpoints: {
         Row: {
-          anti_bypass_enabled: boolean | null
+          anti_bypass_enabled: boolean
           api_token: string | null
-          callback_token: string | null
           checkpoint_order: number
           created_at: string
           id: string
           provider: string
           provider_url: string
           script_id: string
-          updated_at: string
         }
         Insert: {
-          anti_bypass_enabled?: boolean | null
+          anti_bypass_enabled?: boolean
           api_token?: string | null
-          callback_token?: string | null
           checkpoint_order?: number
           created_at?: string
           id?: string
-          provider: string
-          provider_url: string
+          provider?: string
+          provider_url?: string
           script_id: string
-          updated_at?: string
         }
         Update: {
-          anti_bypass_enabled?: boolean | null
+          anti_bypass_enabled?: boolean
           api_token?: string | null
-          callback_token?: string | null
           checkpoint_order?: number
           created_at?: string
           id?: string
           provider?: string
           provider_url?: string
           script_id?: string
-          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "ad_checkpoints_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ad_key_sessions: {
-        Row: {
-          checkpoint_started_at: string | null
-          completed_at: string | null
-          created_at: string
-          current_step: number
-          generated_key: string | null
-          hwid: string | null
-          id: string
-          ip_address: string
-          key_expires_at: string | null
-          last_activity_at: string | null
-          pending_checkpoint_id: string | null
-          script_id: string
-          session_token: string
-          step1_completed_at: string | null
-          step2_completed_at: string | null
-          step3_completed_at: string | null
-          total_steps: number
-        }
-        Insert: {
-          checkpoint_started_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          current_step?: number
-          generated_key?: string | null
-          hwid?: string | null
-          id?: string
-          ip_address: string
-          key_expires_at?: string | null
-          last_activity_at?: string | null
-          pending_checkpoint_id?: string | null
-          script_id: string
-          session_token?: string
-          step1_completed_at?: string | null
-          step2_completed_at?: string | null
-          step3_completed_at?: string | null
-          total_steps?: number
-        }
-        Update: {
-          checkpoint_started_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          current_step?: number
-          generated_key?: string | null
-          hwid?: string | null
-          id?: string
-          ip_address?: string
-          key_expires_at?: string | null
-          last_activity_at?: string | null
-          pending_checkpoint_id?: string | null
-          script_id?: string
-          session_token?: string
-          step1_completed_at?: string | null
-          step2_completed_at?: string | null
-          step3_completed_at?: string | null
-          total_steps?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ad_key_sessions_pending_checkpoint_id_fkey"
-            columns: ["pending_checkpoint_id"]
-            isOneToOne: false
-            referencedRelation: "ad_checkpoints"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ad_key_sessions_script_id_fkey"
             columns: ["script_id"]
             isOneToOne: false
             referencedRelation: "scripts"
@@ -144,9 +63,8 @@ export type Database = {
           enabled: boolean
           id: string
           key_duration_hours: number
-          linkvertise_enabled: boolean | null
+          linkvertise_enabled: boolean
           script_id: string
-          updated_at: string
         }
         Insert: {
           checkpoint_count?: number
@@ -155,9 +73,8 @@ export type Database = {
           enabled?: boolean
           id?: string
           key_duration_hours?: number
-          linkvertise_enabled?: boolean | null
+          linkvertise_enabled?: boolean
           script_id: string
-          updated_at?: string
         }
         Update: {
           checkpoint_count?: number
@@ -166,9 +83,8 @@ export type Database = {
           enabled?: boolean
           id?: string
           key_duration_hours?: number
-          linkvertise_enabled?: boolean | null
+          linkvertise_enabled?: boolean
           script_id?: string
-          updated_at?: string
         }
         Relationships: [
           {
@@ -180,155 +96,54 @@ export type Database = {
           },
         ]
       }
-      api_requests: {
-        Row: {
-          created_at: string
-          endpoint: string
-          error_message: string | null
-          id: string
-          ip_address: string | null
-          key_id: string | null
-          method: string
-          response_time_ms: number | null
-          script_id: string | null
-          status_code: number | null
-          user_agent: string | null
-        }
-        Insert: {
-          created_at?: string
-          endpoint: string
-          error_message?: string | null
-          id?: string
-          ip_address?: string | null
-          key_id?: string | null
-          method?: string
-          response_time_ms?: number | null
-          script_id?: string | null
-          status_code?: number | null
-          user_agent?: string | null
-        }
-        Update: {
-          created_at?: string
-          endpoint?: string
-          error_message?: string | null
-          id?: string
-          ip_address?: string | null
-          key_id?: string | null
-          method?: string
-          response_time_ms?: number | null
-          script_id?: string | null
-          status_code?: number | null
-          user_agent?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "api_requests_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "script_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "api_requests_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      auth_nonces: {
-        Row: {
-          client_hwid: string | null
-          created_at: string
-          expires_at: string
-          id: string
-          ip_address: string | null
-          nonce: string
-          script_id: string
-        }
-        Insert: {
-          client_hwid?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          ip_address?: string | null
-          nonce: string
-          script_id: string
-        }
-        Update: {
-          client_hwid?: string | null
-          created_at?: string
-          expires_at?: string
-          id?: string
-          ip_address?: string | null
-          nonce?: string
-          script_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "auth_nonces_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       community_scripts: {
         Row: {
           category: string | null
           created_at: string
           description: string | null
-          dislikes_count: number | null
-          downloads: number | null
+          downloads: number
           game_name: string | null
           id: string
           image_url: string | null
-          is_active: boolean | null
-          is_verified: boolean | null
-          likes_count: number | null
+          is_active: boolean
+          likes: number
           name: string
           script_content: string
           updated_at: string
           user_id: string
-          views: number | null
+          views: number
         }
         Insert: {
           category?: string | null
           created_at?: string
           description?: string | null
-          dislikes_count?: number | null
-          downloads?: number | null
+          downloads?: number
           game_name?: string | null
           id?: string
           image_url?: string | null
-          is_active?: boolean | null
-          is_verified?: boolean | null
-          likes_count?: number | null
+          is_active?: boolean
+          likes?: number
           name: string
-          script_content: string
+          script_content?: string
           updated_at?: string
           user_id: string
-          views?: number | null
+          views?: number
         }
         Update: {
           category?: string | null
           created_at?: string
           description?: string | null
-          dislikes_count?: number | null
-          downloads?: number | null
+          downloads?: number
           game_name?: string | null
           id?: string
           image_url?: string | null
-          is_active?: boolean | null
-          is_verified?: boolean | null
-          likes_count?: number | null
+          is_active?: boolean
+          likes?: number
           name?: string
           script_content?: string
           updated_at?: string
           user_id?: string
-          views?: number | null
+          views?: number
         }
         Relationships: []
       }
@@ -336,230 +151,81 @@ export type Database = {
         Row: {
           amount: number
           api_key: string | null
-          approved_at: string | null
-          approved_by: string | null
           created_at: string
-          duration_days: number
-          expires_at: string | null
           id: string
-          invoice_id: string
-          manual_approval_requested: boolean | null
+          invoice_id: string | null
+          marketplace_product_id: string | null
           order_id: string
-          paid_at: string | null
-          payment_amount: number | null
-          payment_currency: string | null
           plan_name: string
           status: string
-          user_email: string
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
-          amount: number
+          amount?: number
           api_key?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
           created_at?: string
-          duration_days?: number
-          expires_at?: string | null
           id?: string
-          invoice_id: string
-          manual_approval_requested?: boolean | null
+          invoice_id?: string | null
+          marketplace_product_id?: string | null
           order_id: string
-          paid_at?: string | null
-          payment_amount?: number | null
-          payment_currency?: string | null
           plan_name: string
           status?: string
-          user_email: string
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
           api_key?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
           created_at?: string
-          duration_days?: number
-          expires_at?: string | null
           id?: string
-          invoice_id?: string
-          manual_approval_requested?: boolean | null
+          invoice_id?: string | null
+          marketplace_product_id?: string | null
           order_id?: string
-          paid_at?: string | null
-          payment_amount?: number | null
-          payment_currency?: string | null
           plan_name?: string
           status?: string
-          user_email?: string
-        }
-        Relationships: []
-      }
-      delivery_sessions: {
-        Row: {
-          chunk_count: number
-          context_hash: string
-          created_at: string
-          delivered_chunks: Json
-          game_id: string
-          hwid_hash: string
-          id: string
-          key_id: string | null
-          last_activity: string
-          place_id: string
-          script_id: string
-          session_token: string
-        }
-        Insert: {
-          chunk_count: number
-          context_hash: string
-          created_at?: string
-          delivered_chunks?: Json
-          game_id?: string
-          hwid_hash: string
-          id?: string
-          key_id?: string | null
-          last_activity?: string
-          place_id?: string
-          script_id: string
-          session_token: string
-        }
-        Update: {
-          chunk_count?: number
-          context_hash?: string
-          created_at?: string
-          delivered_chunks?: Json
-          game_id?: string
-          hwid_hash?: string
-          id?: string
-          key_id?: string | null
-          last_activity?: string
-          place_id?: string
-          script_id?: string
-          session_token?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "delivery_sessions_key_id_fkey"
-            columns: ["key_id"]
+            foreignKeyName: "crypto_payments_marketplace_product_id_fkey"
+            columns: ["marketplace_product_id"]
             isOneToOne: false
-            referencedRelation: "script_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_sessions_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
+            referencedRelation: "marketplace_products"
             referencedColumns: ["id"]
           },
         ]
       }
       discord_servers: {
         Row: {
-          allow_user_hwid_reset: boolean | null
-          api_key: string
           bot_token: string | null
-          buyer_role_id: string | null
           created_at: string
-          guild_id: string
-          hwid_reset_cooldown_hours: number | null
+          guild_id: string | null
           id: string
-          log_channel_id: string | null
-          manager_role_id: string | null
           public_key: string | null
-          script_id: string | null
-          updated_at: string
-          user_id: string
-          webhook_url: string | null
-        }
-        Insert: {
-          allow_user_hwid_reset?: boolean | null
-          api_key: string
-          bot_token?: string | null
-          buyer_role_id?: string | null
-          created_at?: string
-          guild_id: string
-          hwid_reset_cooldown_hours?: number | null
-          id?: string
-          log_channel_id?: string | null
-          manager_role_id?: string | null
-          public_key?: string | null
-          script_id?: string | null
-          updated_at?: string
-          user_id: string
-          webhook_url?: string | null
-        }
-        Update: {
-          allow_user_hwid_reset?: boolean | null
-          api_key?: string
-          bot_token?: string | null
-          buyer_role_id?: string | null
-          created_at?: string
-          guild_id?: string
-          hwid_reset_cooldown_hours?: number | null
-          id?: string
-          log_channel_id?: string | null
-          manager_role_id?: string | null
-          public_key?: string | null
-          script_id?: string | null
-          updated_at?: string
-          user_id?: string
-          webhook_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "discord_servers_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      encrypted_scripts: {
-        Row: {
-          aes_key_rsa_encrypted: string
-          created_at: string
-          encrypted_content: string
-          encrypted_metadata: string
-          id: string
-          locker_salt: string
-          placeholder_data: Json | null
-          script_id: string
           updated_at: string
           user_id: string
         }
         Insert: {
-          aes_key_rsa_encrypted: string
+          bot_token?: string | null
           created_at?: string
-          encrypted_content: string
-          encrypted_metadata: string
+          guild_id?: string | null
           id?: string
-          locker_salt: string
-          placeholder_data?: Json | null
-          script_id: string
+          public_key?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          aes_key_rsa_encrypted?: string
+          bot_token?: string | null
           created_at?: string
-          encrypted_content?: string
-          encrypted_metadata?: string
+          guild_id?: string | null
           id?: string
-          locker_salt?: string
-          placeholder_data?: Json | null
-          script_id?: string
+          public_key?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "encrypted_scripts_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: true
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       key_system_providers: {
         Row: {
@@ -567,7 +233,6 @@ export type Database = {
           id: string
           key_duration_minutes: number
           name: string
-          updated_at: string
           user_id: string
         }
         Insert: {
@@ -575,7 +240,6 @@ export type Database = {
           id?: string
           key_duration_minutes?: number
           name: string
-          updated_at?: string
           user_id: string
         }
         Update: {
@@ -583,97 +247,57 @@ export type Database = {
           id?: string
           key_duration_minutes?: number
           name?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      locker_sessions: {
-        Row: {
-          created_at: string
-          crypto_keys_callback_token: string | null
-          expires_at: string
-          id: string
-          ip_address: string | null
-          is_unlocked: boolean | null
-          mfa_callback_token: string | null
-          mfa_verified: boolean | null
-          session_token: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          crypto_keys_callback_token?: string | null
-          expires_at?: string
-          id?: string
-          ip_address?: string | null
-          is_unlocked?: boolean | null
-          mfa_callback_token?: string | null
-          mfa_verified?: boolean | null
-          session_token?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          crypto_keys_callback_token?: string | null
-          expires_at?: string
-          id?: string
-          ip_address?: string | null
-          is_unlocked?: boolean | null
-          mfa_callback_token?: string | null
-          mfa_verified?: boolean | null
-          session_token?: string
           user_id?: string
         }
         Relationships: []
       }
       marketplace_products: {
         Row: {
-          category: string | null
+          category: string
           created_at: string
           description: string | null
-          downloads: number | null
+          downloads: number
           id: string
           image_url: string | null
-          is_active: boolean | null
-          is_advertised: boolean | null
+          is_active: boolean
+          is_advertised: boolean
           name: string
           price: number
-          rating: number | null
+          rating: number
           script_content: string | null
           script_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
-          category?: string | null
+          category?: string
           created_at?: string
           description?: string | null
-          downloads?: number | null
+          downloads?: number
           id?: string
           image_url?: string | null
-          is_active?: boolean | null
-          is_advertised?: boolean | null
+          is_active?: boolean
+          is_advertised?: boolean
           name: string
           price?: number
-          rating?: number | null
+          rating?: number
           script_content?: string | null
           script_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
-          category?: string | null
+          category?: string
           created_at?: string
           description?: string | null
-          downloads?: number | null
+          downloads?: number
           id?: string
           image_url?: string | null
-          is_active?: boolean | null
-          is_advertised?: boolean | null
+          is_active?: boolean
+          is_advertised?: boolean
           name?: string
           price?: number
-          rating?: number | null
+          rating?: number
           script_content?: string | null
           script_id?: string | null
           updated_at?: string
@@ -691,32 +315,26 @@ export type Database = {
       }
       marketplace_purchases: {
         Row: {
-          amount: number
+          created_at: string
           id: string
-          license_key: string
+          price_paid: number
           product_id: string
-          purchased_at: string
-          script_content: string | null
           status: string
           user_id: string
         }
         Insert: {
-          amount?: number
+          created_at?: string
           id?: string
-          license_key?: string
+          price_paid?: number
           product_id: string
-          purchased_at?: string
-          script_content?: string | null
           status?: string
           user_id: string
         }
         Update: {
-          amount?: number
+          created_at?: string
           id?: string
-          license_key?: string
+          price_paid?: number
           product_id?: string
-          purchased_at?: string
-          script_content?: string | null
           status?: string
           user_id?: string
         }
@@ -726,44 +344,6 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "marketplace_products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      obfuscated_loaders: {
-        Row: {
-          created_at: string
-          id: string
-          loader_code: string
-          luraph_job_id: string | null
-          script_hash: string
-          script_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          loader_code: string
-          luraph_job_id?: string | null
-          script_hash: string
-          script_id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          loader_code?: string
-          luraph_job_id?: string | null
-          script_hash?: string
-          script_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "obfuscated_loaders_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: true
-            referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
         ]
@@ -798,15 +378,16 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
-          is_admin: boolean | null
-          key_creation_count: number | null
-          last_usage_reset: string | null
-          obfuscation_count: number | null
-          script_creation_count: number | null
+          is_admin: boolean
+          key_creation_count: number
+          obfuscation_count: number
+          script_creation_count: number
           subscription_expires_at: string | null
-          subscription_plan: string | null
+          subscription_plan: string
           subscription_started_at: string | null
-          tokens: number | null
+          tokens: number
+          updated_at: string
+          user_id: string
         }
         Insert: {
           api_key?: string | null
@@ -815,16 +396,17 @@ export type Database = {
           discord_id?: string | null
           display_name?: string | null
           email?: string | null
-          id: string
-          is_admin?: boolean | null
-          key_creation_count?: number | null
-          last_usage_reset?: string | null
-          obfuscation_count?: number | null
-          script_creation_count?: number | null
+          id?: string
+          is_admin?: boolean
+          key_creation_count?: number
+          obfuscation_count?: number
+          script_creation_count?: number
           subscription_expires_at?: string | null
-          subscription_plan?: string | null
+          subscription_plan?: string
           subscription_started_at?: string | null
-          tokens?: number | null
+          tokens?: number
+          updated_at?: string
+          user_id: string
         }
         Update: {
           api_key?: string | null
@@ -834,119 +416,91 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
-          is_admin?: boolean | null
-          key_creation_count?: number | null
-          last_usage_reset?: string | null
-          obfuscation_count?: number | null
-          script_creation_count?: number | null
+          is_admin?: boolean
+          key_creation_count?: number
+          obfuscation_count?: number
+          script_creation_count?: number
           subscription_expires_at?: string | null
-          subscription_plan?: string | null
+          subscription_plan?: string
           subscription_started_at?: string | null
-          tokens?: number | null
+          tokens?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
-      }
-      promo_code_uses: {
-        Row: {
-          id: string
-          promo_code_id: string | null
-          used_at: string | null
-          user_email: string
-        }
-        Insert: {
-          id?: string
-          promo_code_id?: string | null
-          used_at?: string | null
-          user_email: string
-        }
-        Update: {
-          id?: string
-          promo_code_id?: string | null
-          used_at?: string | null
-          user_email?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "promo_code_uses_promo_code_id_fkey"
-            columns: ["promo_code_id"]
-            isOneToOne: false
-            referencedRelation: "promo_codes"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       promo_codes: {
         Row: {
           code: string
-          created_at: string | null
+          created_at: string
           created_by: string | null
-          current_uses: number | null
+          current_uses: number
           discount_percent: number
           expires_at: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           max_uses: number | null
-          updated_at: string | null
         }
         Insert: {
           code: string
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
-          current_uses?: number | null
-          discount_percent: number
-          expires_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          max_uses?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          code?: string
-          created_at?: string | null
-          created_by?: string | null
-          current_uses?: number | null
+          current_uses?: number
           discount_percent?: number
           expires_at?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           max_uses?: number | null
-          updated_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          current_uses?: number
+          discount_percent?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
         }
         Relationships: []
       }
       provider_checkpoints: {
         Row: {
-          anti_bypass_enabled: boolean | null
+          anti_bypass_enabled: boolean
           api_token: string | null
           checkpoint_order: number
           checkpoint_type: string
           created_at: string
           id: string
           provider_id: string
+          provider_type: string
           provider_url: string
-          updated_at: string
+          url: string
         }
         Insert: {
-          anti_bypass_enabled?: boolean | null
+          anti_bypass_enabled?: boolean
           api_token?: string | null
           checkpoint_order?: number
           checkpoint_type?: string
           created_at?: string
           id?: string
           provider_id: string
-          provider_url: string
-          updated_at?: string
+          provider_type?: string
+          provider_url?: string
+          url?: string
         }
         Update: {
-          anti_bypass_enabled?: boolean | null
+          anti_bypass_enabled?: boolean
           api_token?: string | null
           checkpoint_order?: number
           checkpoint_type?: string
           created_at?: string
           id?: string
           provider_id?: string
+          provider_type?: string
           provider_url?: string
-          updated_at?: string
+          url?: string
         }
         Relationships: [
           {
@@ -958,218 +512,48 @@ export type Database = {
           },
         ]
       }
-      rate_limits: {
-        Row: {
-          attempts: number
-          blocked_until: string | null
-          endpoint: string
-          first_attempt_at: string
-          id: string
-          identifier: string
-          last_attempt_at: string
-        }
-        Insert: {
-          attempts?: number
-          blocked_until?: string | null
-          endpoint: string
-          first_attempt_at?: string
-          id?: string
-          identifier: string
-          last_attempt_at?: string
-        }
-        Update: {
-          attempts?: number
-          blocked_until?: string | null
-          endpoint?: string
-          first_attempt_at?: string
-          id?: string
-          identifier?: string
-          last_attempt_at?: string
-        }
-        Relationships: []
-      }
-      rotating_tokens: {
-        Row: {
-          created_at: string
-          expires_at: string
-          hwid_hash: string | null
-          id: string
-          ip_address: string | null
-          is_valid: boolean
-          key_id: string | null
-          max_step: number
-          script_id: string
-          step: number
-          token: string
-          used_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          expires_at?: string
-          hwid_hash?: string | null
-          id?: string
-          ip_address?: string | null
-          is_valid?: boolean
-          key_id?: string | null
-          max_step?: number
-          script_id: string
-          step?: number
-          token: string
-          used_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string
-          hwid_hash?: string | null
-          id?: string
-          ip_address?: string | null
-          is_valid?: boolean
-          key_id?: string | null
-          max_step?: number
-          script_id?: string
-          step?: number
-          token?: string
-          used_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rotating_tokens_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "script_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rotating_tokens_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales: {
-        Row: {
-          amount: number
-          created_at: string
-          discount_percent: number | null
-          duration_days: number | null
-          id: string
-          payment_method: string | null
-          plan_name: string
-          promo_code: string | null
-          status: string
-          user_email: string
-          user_id: string | null
-        }
-        Insert: {
-          amount?: number
-          created_at?: string
-          discount_percent?: number | null
-          duration_days?: number | null
-          id?: string
-          payment_method?: string | null
-          plan_name: string
-          promo_code?: string | null
-          status?: string
-          user_email: string
-          user_id?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          discount_percent?: number | null
-          duration_days?: number | null
-          id?: string
-          payment_method?: string | null
-          plan_name?: string
-          promo_code?: string | null
-          status?: string
-          user_email?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      script_assets: {
-        Row: {
-          created_at: string
-          file_size: number
-          file_type: string
-          id: string
-          name: string
-          script_id: string
-          storage_path: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          file_size: number
-          file_type: string
-          id?: string
-          name: string
-          script_id: string
-          storage_path: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          file_size?: number
-          file_type?: string
-          id?: string
-          name?: string
-          script_id?: string
-          storage_path?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_assets_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       script_executions: {
         Row: {
           country: string | null
+          created_at: string
           executed_at: string
           executor_ip: string | null
           executor_type: string | null
           hwid: string | null
           id: string
+          ip_address: string | null
           key_id: string | null
-          roblox_user_id: string | null
           roblox_username: string | null
-          script_id: string
+          script_id: string | null
+          success: boolean
         }
         Insert: {
           country?: string | null
+          created_at?: string
           executed_at?: string
           executor_ip?: string | null
           executor_type?: string | null
           hwid?: string | null
           id?: string
+          ip_address?: string | null
           key_id?: string | null
-          roblox_user_id?: string | null
           roblox_username?: string | null
-          script_id: string
+          script_id?: string | null
+          success?: boolean
         }
         Update: {
           country?: string | null
+          created_at?: string
           executed_at?: string
           executor_ip?: string | null
           executor_type?: string | null
           hwid?: string | null
           id?: string
+          ip_address?: string | null
           key_id?: string | null
-          roblox_user_id?: string | null
           roblox_username?: string | null
-          script_id?: string
+          script_id?: string | null
+          success?: boolean
         }
         Relationships: [
           {
@@ -1188,122 +572,48 @@ export type Database = {
           },
         ]
       }
-      script_favorites: {
-        Row: {
-          created_at: string
-          id: string
-          script_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          script_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          script_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_favorites_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "community_scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       script_keys: {
         Row: {
-          activated_at: string | null
-          ban_expire: string | null
-          ban_reason: string | null
           created_at: string
-          discord_avatar_url: string | null
           discord_id: string | null
           duration_type: string | null
-          execution_count: number | null
           expires_at: string | null
           hwid: string | null
-          hwid_reset_count: number | null
           id: string
           is_banned: boolean
-          key_days: number | null
           key_format: string | null
           key_value: string
-          last_execution_ip: string | null
-          last_hwid_reset: string | null
-          last_reset: string | null
-          last_warning_at: string | null
           note: string | null
           script_id: string
-          status: string | null
-          total_resets: number | null
-          unban_token: string | null
           used_at: string | null
-          warning_count: number | null
         }
         Insert: {
-          activated_at?: string | null
-          ban_expire?: string | null
-          ban_reason?: string | null
           created_at?: string
-          discord_avatar_url?: string | null
           discord_id?: string | null
           duration_type?: string | null
-          execution_count?: number | null
           expires_at?: string | null
           hwid?: string | null
-          hwid_reset_count?: number | null
           id?: string
           is_banned?: boolean
-          key_days?: number | null
           key_format?: string | null
           key_value?: string
-          last_execution_ip?: string | null
-          last_hwid_reset?: string | null
-          last_reset?: string | null
-          last_warning_at?: string | null
           note?: string | null
           script_id: string
-          status?: string | null
-          total_resets?: number | null
-          unban_token?: string | null
           used_at?: string | null
-          warning_count?: number | null
         }
         Update: {
-          activated_at?: string | null
-          ban_expire?: string | null
-          ban_reason?: string | null
           created_at?: string
-          discord_avatar_url?: string | null
           discord_id?: string | null
           duration_type?: string | null
-          execution_count?: number | null
           expires_at?: string | null
           hwid?: string | null
-          hwid_reset_count?: number | null
           id?: string
           is_banned?: boolean
-          key_days?: number | null
           key_format?: string | null
           key_value?: string
-          last_execution_ip?: string | null
-          last_hwid_reset?: string | null
-          last_reset?: string | null
-          last_warning_at?: string | null
           note?: string | null
           script_id?: string
-          status?: string | null
-          total_resets?: number | null
-          unban_token?: string | null
           used_at?: string | null
-          warning_count?: number | null
         }
         Relationships: [
           {
@@ -1315,138 +625,27 @@ export type Database = {
           },
         ]
       }
-      script_reactions: {
-        Row: {
-          created_at: string
-          id: string
-          reaction_type: string
-          script_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          reaction_type: string
-          script_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          reaction_type?: string
-          script_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_reactions_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "community_scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      script_reports: {
-        Row: {
-          created_at: string
-          id: string
-          reason: string | null
-          script_id: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          reason?: string | null
-          script_id: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          reason?: string | null
-          script_id?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_reports_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "community_scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      script_secrets: {
-        Row: {
-          aes_salt: string
-          created_at: string
-          hmac_key: string
-          id: string
-          rotated_at: string
-          script_id: string
-          secret_n1: string
-          secret_n2: string
-          secret_n3: string
-        }
-        Insert: {
-          aes_salt?: string
-          created_at?: string
-          hmac_key?: string
-          id?: string
-          rotated_at?: string
-          script_id: string
-          secret_n1?: string
-          secret_n2?: string
-          secret_n3?: string
-        }
-        Update: {
-          aes_salt?: string
-          created_at?: string
-          hmac_key?: string
-          id?: string
-          rotated_at?: string
-          script_id?: string
-          secret_n1?: string
-          secret_n2?: string
-          secret_n3?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "script_secrets_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: true
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       script_views: {
         Row: {
-          can_view_source: boolean | null
+          can_view_source: boolean
           created_at: string
           id: string
-          script_id: string
-          viewer_ip: string
+          script_id: string | null
+          viewer_ip: string | null
         }
         Insert: {
-          can_view_source?: boolean | null
+          can_view_source?: boolean
           created_at?: string
           id?: string
-          script_id: string
-          viewer_ip: string
+          script_id?: string | null
+          viewer_ip?: string | null
         }
         Update: {
-          can_view_source?: boolean | null
+          can_view_source?: boolean
           created_at?: string
           id?: string
-          script_id?: string
-          viewer_ip?: string
+          script_id?: string | null
+          viewer_ip?: string | null
         }
         Relationships: [
           {
@@ -1461,97 +660,68 @@ export type Database = {
       scripts: {
         Row: {
           allowed_ips: string[] | null
-          anti_debug_enabled: boolean | null
-          anti_tamper_enabled: boolean | null
+          anti_debug_enabled: boolean
+          anti_tamper_enabled: boolean
           content: string
           created_at: string
           creator_ip: string | null
-          disable_validation_gui: boolean | null
-          discord_webhook_enabled: boolean | null
+          discord_webhook_enabled: boolean
           discord_webhook_url: string | null
-          enable_spy_warnings: boolean | null
-          execution_count: number | null
-          ffa_mode: boolean | null
-          heartbeat_enabled: boolean | null
-          hwid_lock_enabled: boolean | null
+          enable_spy_warnings: boolean
+          execution_count: number
+          hwid_lock_enabled: boolean
           id: string
           key_provider_id: string | null
-          last_execution_at: string | null
-          lightning_mode: boolean | null
-          loader_token: string
-          max_warnings: number | null
+          loader_token: string | null
           name: string
-          secure_core_enabled: boolean | null
-          share_code: string
-          silent_mode: boolean | null
+          secure_core_enabled: boolean
+          share_code: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           allowed_ips?: string[] | null
-          anti_debug_enabled?: boolean | null
-          anti_tamper_enabled?: boolean | null
+          anti_debug_enabled?: boolean
+          anti_tamper_enabled?: boolean
           content: string
           created_at?: string
           creator_ip?: string | null
-          disable_validation_gui?: boolean | null
-          discord_webhook_enabled?: boolean | null
+          discord_webhook_enabled?: boolean
           discord_webhook_url?: string | null
-          enable_spy_warnings?: boolean | null
-          execution_count?: number | null
-          ffa_mode?: boolean | null
-          heartbeat_enabled?: boolean | null
-          hwid_lock_enabled?: boolean | null
+          enable_spy_warnings?: boolean
+          execution_count?: number
+          hwid_lock_enabled?: boolean
           id?: string
           key_provider_id?: string | null
-          last_execution_at?: string | null
-          lightning_mode?: boolean | null
-          loader_token: string
-          max_warnings?: number | null
+          loader_token?: string | null
           name: string
-          secure_core_enabled?: boolean | null
-          share_code?: string
-          silent_mode?: boolean | null
+          secure_core_enabled?: boolean
+          share_code?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           allowed_ips?: string[] | null
-          anti_debug_enabled?: boolean | null
-          anti_tamper_enabled?: boolean | null
+          anti_debug_enabled?: boolean
+          anti_tamper_enabled?: boolean
           content?: string
           created_at?: string
           creator_ip?: string | null
-          disable_validation_gui?: boolean | null
-          discord_webhook_enabled?: boolean | null
+          discord_webhook_enabled?: boolean
           discord_webhook_url?: string | null
-          enable_spy_warnings?: boolean | null
-          execution_count?: number | null
-          ffa_mode?: boolean | null
-          heartbeat_enabled?: boolean | null
-          hwid_lock_enabled?: boolean | null
+          enable_spy_warnings?: boolean
+          execution_count?: number
+          hwid_lock_enabled?: boolean
           id?: string
           key_provider_id?: string | null
-          last_execution_at?: string | null
-          lightning_mode?: boolean | null
-          loader_token?: string
-          max_warnings?: number | null
+          loader_token?: string | null
           name?: string
-          secure_core_enabled?: boolean | null
-          share_code?: string
-          silent_mode?: boolean | null
+          secure_core_enabled?: boolean
+          share_code?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "scripts_key_provider_id_fkey"
-            columns: ["key_provider_id"]
-            isOneToOne: false
-            referencedRelation: "key_system_providers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       security_events: {
         Row: {
@@ -1560,21 +730,17 @@ export type Database = {
           event_type: string
           id: string
           ip_address: string | null
-          key_id: string | null
           script_id: string | null
           severity: string
-          user_agent: string | null
         }
         Insert: {
           created_at?: string
           details?: Json | null
-          event_type: string
+          event_type?: string
           id?: string
           ip_address?: string | null
-          key_id?: string | null
           script_id?: string | null
           severity?: string
-          user_agent?: string | null
         }
         Update: {
           created_at?: string
@@ -1582,84 +748,12 @@ export type Database = {
           event_type?: string
           id?: string
           ip_address?: string | null
-          key_id?: string | null
           script_id?: string | null
           severity?: string
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
-      security_reports: {
-        Row: {
-          action_taken: string | null
-          ban_applied: boolean | null
-          ban_duration_hours: number | null
-          created_at: string
-          id: string
-          key_id: string | null
-          pattern_anomaly_score: number | null
-          reported_executor: string | null
-          reported_hwid: string | null
-          reported_ip: string | null
-          reported_threats: string[] | null
-          request_count_1h: number | null
-          request_fingerprint: string | null
-          script_id: string
-          threat_level: string
-          unique_ips_1h: number | null
-          verified_at: string
-          verified_ip: string
-        }
-        Insert: {
-          action_taken?: string | null
-          ban_applied?: boolean | null
-          ban_duration_hours?: number | null
-          created_at?: string
-          id?: string
-          key_id?: string | null
-          pattern_anomaly_score?: number | null
-          reported_executor?: string | null
-          reported_hwid?: string | null
-          reported_ip?: string | null
-          reported_threats?: string[] | null
-          request_count_1h?: number | null
-          request_fingerprint?: string | null
-          script_id: string
-          threat_level?: string
-          unique_ips_1h?: number | null
-          verified_at?: string
-          verified_ip: string
-        }
-        Update: {
-          action_taken?: string | null
-          ban_applied?: boolean | null
-          ban_duration_hours?: number | null
-          created_at?: string
-          id?: string
-          key_id?: string | null
-          pattern_anomaly_score?: number | null
-          reported_executor?: string | null
-          reported_hwid?: string | null
-          reported_ip?: string | null
-          reported_threats?: string[] | null
-          request_count_1h?: number | null
-          request_fingerprint?: string | null
-          script_id?: string
-          threat_level?: string
-          unique_ips_1h?: number | null
-          verified_at?: string
-          verified_ip?: string
         }
         Relationships: [
           {
-            foreignKeyName: "security_reports_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "script_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "security_reports_script_id_fkey"
+            foreignKeyName: "security_events_script_id_fkey"
             columns: ["script_id"]
             isOneToOne: false
             referencedRelation: "scripts"
@@ -1670,34 +764,40 @@ export type Database = {
       subscription_codes: {
         Row: {
           code: string
-          created_at: string | null
+          created_at: string
           duration_days: number
           id: string
-          is_used: boolean | null
+          is_used: boolean
           plan_name: string
           price: number
+          redeemed_at: string | null
+          redeemed_by: string | null
           used_at: string | null
           used_by: string | null
         }
         Insert: {
-          code?: string
-          created_at?: string | null
-          duration_days: number
+          code: string
+          created_at?: string
+          duration_days?: number
           id?: string
-          is_used?: boolean | null
+          is_used?: boolean
           plan_name: string
-          price: number
+          price?: number
+          redeemed_at?: string | null
+          redeemed_by?: string | null
           used_at?: string | null
           used_by?: string | null
         }
         Update: {
           code?: string
-          created_at?: string | null
+          created_at?: string
           duration_days?: number
           id?: string
-          is_used?: boolean | null
+          is_used?: boolean
           plan_name?: string
           price?: number
+          redeemed_at?: string | null
+          redeemed_by?: string | null
           used_at?: string | null
           used_by?: string | null
         }
@@ -1705,46 +805,40 @@ export type Database = {
       }
       subscription_plans: {
         Row: {
-          created_at: string | null
+          created_at: string
           display_name: string
-          duration_days: number
           features: Json | null
           id: string
-          is_active: boolean | null
-          key_creation_limit: number | null
+          key_creation_limit: number
+          max_scripts: number
           name: string
-          obfuscation_limit: number | null
+          obfuscation_limit: number
           price: number
-          script_limit: number | null
-          updated_at: string | null
+          script_limit: number
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           display_name: string
-          duration_days?: number
           features?: Json | null
           id?: string
-          is_active?: boolean | null
-          key_creation_limit?: number | null
+          key_creation_limit?: number
+          max_scripts?: number
           name: string
-          obfuscation_limit?: number | null
+          obfuscation_limit?: number
           price?: number
-          script_limit?: number | null
-          updated_at?: string | null
+          script_limit?: number
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           display_name?: string
-          duration_days?: number
           features?: Json | null
           id?: string
-          is_active?: boolean | null
-          key_creation_limit?: number | null
+          key_creation_limit?: number
+          max_scripts?: number
           name?: string
-          obfuscation_limit?: number | null
+          obfuscation_limit?: number
           price?: number
-          script_limit?: number | null
-          updated_at?: string | null
+          script_limit?: number
         }
         Relationships: []
       }
@@ -1753,7 +847,6 @@ export type Database = {
           content: string
           created_at: string
           id: string
-          sender_id: string
           sender_type: string
           ticket_id: string
         }
@@ -1761,15 +854,13 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
-          sender_id: string
-          sender_type: string
+          sender_type?: string
           ticket_id: string
         }
         Update: {
           content?: string
           created_at?: string
           id?: string
-          sender_id?: string
           sender_type?: string
           ticket_id?: string
         }
@@ -1785,6 +876,7 @@ export type Database = {
       }
       support_tickets: {
         Row: {
+          admin_id: string | null
           created_at: string
           id: string
           status: string
@@ -1794,6 +886,7 @@ export type Database = {
           user_name: string | null
         }
         Insert: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           status?: string
@@ -1803,6 +896,7 @@ export type Database = {
           user_name?: string | null
         }
         Update: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           status?: string
@@ -1810,173 +904,6 @@ export type Database = {
           user_email?: string
           user_id?: string
           user_name?: string | null
-        }
-        Relationships: []
-      }
-      tamper_bans: {
-        Row: {
-          banned_at: string
-          created_at: string
-          expires_at: string
-          hwid: string | null
-          id: string
-          ip_address: string
-          reason: string
-          script_id: string
-        }
-        Insert: {
-          banned_at?: string
-          created_at?: string
-          expires_at?: string
-          hwid?: string | null
-          id?: string
-          ip_address: string
-          reason?: string
-          script_id: string
-        }
-        Update: {
-          banned_at?: string
-          created_at?: string
-          expires_at?: string
-          hwid?: string | null
-          id?: string
-          ip_address?: string
-          reason?: string
-          script_id?: string
-        }
-        Relationships: []
-      }
-      tracepath_sessions: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          current_step: number
-          expires_at: string
-          hwid_hash: string | null
-          id: string
-          ip_address: string
-          is_valid: boolean
-          script_id: string
-          session_id: string
-          step_endpoints_at: string | null
-          step_flags_at: string | null
-          step_info_at: string | null
-          step_validate_at: string | null
-          step_version_at: string | null
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          current_step?: number
-          expires_at?: string
-          hwid_hash?: string | null
-          id?: string
-          ip_address: string
-          is_valid?: boolean
-          script_id: string
-          session_id: string
-          step_endpoints_at?: string | null
-          step_flags_at?: string | null
-          step_info_at?: string | null
-          step_validate_at?: string | null
-          step_version_at?: string | null
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          current_step?: number
-          expires_at?: string
-          hwid_hash?: string | null
-          id?: string
-          ip_address?: string
-          is_valid?: boolean
-          script_id?: string
-          session_id?: string
-          step_endpoints_at?: string | null
-          step_flags_at?: string | null
-          step_info_at?: string | null
-          step_validate_at?: string | null
-          step_version_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tracepath_sessions_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      used_nonces: {
-        Row: {
-          id: string
-          ip_address: string | null
-          nonce: string
-          script_id: string
-          session_key: string
-          timestamp: number
-          used_at: string
-        }
-        Insert: {
-          id?: string
-          ip_address?: string | null
-          nonce: string
-          script_id: string
-          session_key: string
-          timestamp: number
-          used_at?: string
-        }
-        Update: {
-          id?: string
-          ip_address?: string | null
-          nonce?: string
-          script_id?: string
-          session_key?: string
-          timestamp?: number
-          used_at?: string
-        }
-        Relationships: []
-      }
-      user_crypto_keys: {
-        Row: {
-          created_at: string
-          id: string
-          is_configured: boolean | null
-          locker_session_expires_at: string | null
-          locker_session_id: string | null
-          ownership_proof_encrypted: string | null
-          rsa_private_key_encrypted: string
-          rsa_public_key: string
-          temp_encrypted_master_key: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_configured?: boolean | null
-          locker_session_expires_at?: string | null
-          locker_session_id?: string | null
-          ownership_proof_encrypted?: string | null
-          rsa_private_key_encrypted: string
-          rsa_public_key: string
-          temp_encrypted_master_key?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_configured?: boolean | null
-          locker_session_expires_at?: string | null
-          locker_session_id?: string | null
-          ownership_proof_encrypted?: string | null
-          rsa_private_key_encrypted?: string
-          rsa_public_key?: string
-          temp_encrypted_master_key?: string | null
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -1985,13 +912,11 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
-          is_approved: boolean | null
-          is_featured: boolean | null
-          plan_purchased: string
+          is_approved: boolean
+          plan_purchased: string | null
           rating: number
           review_text: string
-          updated_at: string
-          user_email: string
+          user_email: string | null
           user_id: string
           user_name: string | null
         }
@@ -1999,13 +924,11 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
-          is_approved?: boolean | null
-          is_featured?: boolean | null
-          plan_purchased: string
-          rating: number
+          is_approved?: boolean
+          plan_purchased?: string | null
+          rating?: number
           review_text: string
-          updated_at?: string
-          user_email: string
+          user_email?: string | null
           user_id: string
           user_name?: string | null
         }
@@ -2013,13 +936,11 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           id?: string
-          is_approved?: boolean | null
-          is_featured?: boolean | null
-          plan_purchased?: string
+          is_approved?: boolean
+          plan_purchased?: string | null
           rating?: number
           review_text?: string
-          updated_at?: string
-          user_email?: string
+          user_email?: string | null
           user_id?: string
           user_name?: string | null
         }
@@ -2027,132 +948,66 @@ export type Database = {
       }
       user_roles: {
         Row: {
-          created_at: string | null
+          created_at: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          role: string
           user_id: string
         }
         Insert: {
-          created_at?: string | null
+          created_at?: string
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
+          role?: string
           user_id: string
         }
         Update: {
-          created_at?: string | null
+          created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          role?: string
           user_id?: string
         }
         Relationships: []
       }
-      webhook_logs: {
-        Row: {
-          created_at: string
-          event_type: string
-          id: string
-          payload: Json | null
-          response_code: number | null
-          script_id: string
-          status: string | null
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          id?: string
-          payload?: Json | null
-          response_code?: number | null
-          script_id: string
-          status?: string | null
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          id?: string
-          payload?: Json | null
-          response_code?: number | null
-          script_id?: string
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "webhook_logs_script_id_fkey"
-            columns: ["script_id"]
-            isOneToOne: false
-            referencedRelation: "scripts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       websocket_sessions: {
         Row: {
           connected_at: string
-          created_at: string
           disconnected_at: string | null
           executor: string | null
           hwid: string | null
           id: string
-          ip_address: string
+          ip_address: string | null
           is_connected: boolean
-          key_id: string | null
-          kick_reason: string | null
-          kicked_by: string | null
           last_heartbeat: string
-          metadata: Json | null
-          script_id: string
-          session_token: string
+          script_id: string | null
           status: string
-          updated_at: string
           username: string | null
         }
         Insert: {
           connected_at?: string
-          created_at?: string
           disconnected_at?: string | null
           executor?: string | null
           hwid?: string | null
           id?: string
-          ip_address: string
+          ip_address?: string | null
           is_connected?: boolean
-          key_id?: string | null
-          kick_reason?: string | null
-          kicked_by?: string | null
           last_heartbeat?: string
-          metadata?: Json | null
-          script_id: string
-          session_token?: string
+          script_id?: string | null
           status?: string
-          updated_at?: string
           username?: string | null
         }
         Update: {
           connected_at?: string
-          created_at?: string
           disconnected_at?: string | null
           executor?: string | null
           hwid?: string | null
           id?: string
-          ip_address?: string
+          ip_address?: string | null
           is_connected?: boolean
-          key_id?: string | null
-          kick_reason?: string | null
-          kicked_by?: string | null
           last_heartbeat?: string
-          metadata?: Json | null
-          script_id?: string
-          session_token?: string
+          script_id?: string | null
           status?: string
-          updated_at?: string
           username?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "websocket_sessions_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "script_keys"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "websocket_sessions_script_id_fkey"
             columns: ["script_id"]
@@ -2167,115 +1022,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      activate_key_on_first_use: { Args: { p_key_id: string }; Returns: Json }
-      analyze_security_report: {
-        Args: {
-          p_key_id: string
-          p_reported_executor?: string
-          p_reported_hwid?: string
-          p_reported_threats?: string[]
-          p_script_id: string
-          p_verified_ip: string
-        }
-        Returns: Json
-      }
-      blacklist_key: {
-        Args: { p_ban_expire?: string; p_ban_reason?: string; p_key_id: string }
-        Returns: Json
-      }
-      check_and_clear_expired_bans: { Args: never; Returns: undefined }
       check_usage_limit: {
         Args: { p_limit_type: string; p_user_id: string }
         Returns: Json
       }
-      cleanup_expired_nonces: { Args: never; Returns: undefined }
-      cleanup_expired_tamper_bans: { Args: never; Returns: undefined }
-      cleanup_old_security_reports: { Args: never; Returns: undefined }
-      cleanup_stale_websocket_sessions: { Args: never; Returns: undefined }
       deduct_tokens: {
         Args: { p_amount: number; p_user_id: string }
         Returns: Json
       }
-      generate_api_key: { Args: never; Returns: string }
-      get_api_stats: {
-        Args: never
-        Returns: {
-          avg_response_time_ms: number
-          error_count: number
-          requests_1h: number
-          requests_24h: number
-          total_requests: number
-          unique_ips: number
-        }[]
-      }
-      get_keys_paginated: {
-        Args: {
-          p_discord_id?: string
-          p_from?: number
-          p_identifier?: string
-          p_script_id: string
-          p_search?: string
-          p_until?: number
-          p_user_key?: string
-        }
-        Returns: {
-          activated_at: string
-          auth_expire: string
-          ban_expire: string
-          ban_reason: string
-          banned: boolean
-          discord_id: string
-          identifier: string
-          identifier_type: string
-          key_days: number
-          last_reset: string
-          note: string
-          status: string
-          total_executions: number
-          total_resets: number
-          unban_token: string
-          user_key: string
-        }[]
-      }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       increment_usage: {
         Args: { p_usage_type: string; p_user_id: string }
         Returns: boolean
       }
-      is_tamper_banned: {
-        Args: { p_hwid?: string; p_ip_address: string; p_script_id: string }
-        Returns: {
-          expires_at: string
-          is_banned: boolean
-          reason: string
-        }[]
-      }
-      is_valid_email: { Args: { email: string }; Returns: boolean }
-      reset_key_hwid: {
-        Args: { p_force?: boolean; p_key_id: string }
-        Returns: Json
-      }
-      reset_plan_tokens: { Args: never; Returns: undefined }
-      unban_key_by_token: { Args: { p_unban_token: string }; Returns: Json }
-      update_platform_stats: { Args: never; Returns: undefined }
-      validate_and_consume_nonce: {
-        Args: {
-          p_hwid?: string
-          p_ip?: string
-          p_nonce: string
-          p_script_id: string
-        }
-        Returns: boolean
-      }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2402,8 +1164,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["admin", "moderator", "user"],
-    },
+    Enums: {},
   },
 } as const

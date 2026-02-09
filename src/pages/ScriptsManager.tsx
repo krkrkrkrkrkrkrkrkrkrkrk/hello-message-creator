@@ -278,7 +278,11 @@ const deleteScript = async (id: string) => {
       ? keys[0].key_value 
       : "YOUR_KEY_HERE"; // Placeholder if no keys exist
     
-    return `script_key="${keyToUse}"\n\nloadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/${scriptId}"))()`;
+    // Always use the direct Supabase URL for loader scripts (executors can't access preview URLs)
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+    const loaderUrl = `${supabaseUrl}/functions/v1/loader/${scriptId}`;
+    
+    return `script_key="${keyToUse}"\n\nloadstring(game:HttpGet("${loaderUrl}"))()`;
   };
 
   // Drag and drop handlers

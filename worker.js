@@ -5,17 +5,29 @@ export default {
 
       // 🔀 PROXY PARA API (Supabase escondido)
       if (url.pathname.startsWith("/api")) {
-        url.hostname = "qrypwjkvpsatbvhtyeuw.supabase.co"
+        console.log(`[PROXY] Request: ${request.method} ${url.pathname}`)
+        url.hostname = "blhtfuiolyaszuvydhzq.supabase.co"
         url.pathname = url.pathname.replace("/api", "")
 
         // Preserve headers/method/body (Accept, sec-fetch-*, etc)
         const upstreamReq = new Request(url.toString(), request)
         const res = await fetch(upstreamReq)
 
+        console.log(`[PROXY] Response from Upstream: ${res.status}`)
+
         // 🧹 remove qualquer header com "supabase"
         const headers = new Headers(res.headers)
+
+        // 🔧 FORÇAR HTML e CORRIGIR DESIGN se o header de debug estiver presente 🔧
+        if (headers.get("x-debug-is-html") === "true" || headers.get("x-response-target") === "HTML") {
+          headers.set("content-type", "text/html; charset=utf-8")
+          headers.delete("content-security-policy") // Libera CSS inline e SVGs
+          headers.delete("x-content-type-options")     // Evita bloqueio por nosniff
+        }
+
         for (const key of headers.keys()) {
-          if (key.toLowerCase().includes("supabase")) {
+          const lowerKey = key.toLowerCase()
+          if (lowerKey.includes("supabase") || lowerKey.startsWith("sb-") || lowerKey.includes("deno")) {
             headers.delete(key)
           }
         }

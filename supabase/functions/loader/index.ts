@@ -15,11 +15,11 @@ const UNAUTHORIZED = "Unauthorized";
 
 // Browser-friendly "no access" page (served only when request expects HTML)
 const unauthorizedHTML = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Não autorizado</title>
+  <title>Access Denied</title>
   <style>
     :root{
       --bg1:#0a0a0f;
@@ -173,7 +173,7 @@ const unauthorizedHTML = `<!DOCTYPE html>
 
       <h1>This content is protected by ShadowAuth</h1>
       <p class="sub">You don't have permission to access this content.</p>
-      <p class="desc">Você não tem permissão para visualizar este conteúdo no navegador. Protegido contra acesso não autorizado, reverse engineering e tampering.</p>
+      <p class="desc">This content is protected by ShadowAuth. You cannot see the text in the browser.</p>
 
       <div class="actions">
         <a class="btn btn-outline" href="/">
@@ -201,22 +201,40 @@ const unauthorizedHTML = `<!DOCTYPE html>
 </html>`;
 
 function wantsHtml(req: Request): boolean {
+  const headersObj: Record<string, string> = {};
+  req.headers.forEach((v, k) => { headersObj[k] = v; });
+  console.log(`[DEBUG] wantsHtml: All Headers = ${JSON.stringify(headersObj)}`);
+
   const accept = (req.headers.get("accept") || "").toLowerCase();
   const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  // Browsers usually send Accept: text/html and UA with Mozilla/Chrome/Safari/Edge.
+  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+
+  console.log(`[DEBUG] wantsHtml: accept="${accept}", ua="${ua}", dest="${secFetchDest}"`);
+
+  // Browsers usually send sec-fetch-dest: document for navigations
+  if (secFetchDest === "document") return true;
+
+  // Traditional checks
   if (accept.includes("text/html")) return true;
   if (/\bmozilla\b|\bchrome\b|\bsafari\b|\bedg\b|\bfirefox\b/.test(ua)) return true;
+
   return false;
 }
 
 function unauthorizedResponse(req: Request): Response {
-  if (wantsHtml(req)) {
+  const isHtml = wantsHtml(req);
+  console.log(`[DEBUG] unauthorizedResponse: isHtml=${isHtml}`);
+
+  if (isHtml) {
+    console.log(`[DEBUG] Returning HTML Response with forced headers`);
     return new Response(unauthorizedHTML, {
-      status: 401,
+      status: 200,
       headers: {
-        ...corsHeaders,
-        "Content-Type": "text/html; charset=utf-8",
-      },
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+        "x-response-target": "HTML",
+        "x-debug-is-html": "true"
+      }
     });
   }
 
@@ -227,8 +245,8 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 function isExecutor(ua: string): boolean {
-  const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i, 
-    /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i, 
+  const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i,
+    /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i,
     /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i];
   return patterns.some(p => p.test(ua));
 }
@@ -345,14 +363,14 @@ class LuraphClient {
     const nodes = await this.getNodes();
     const nodeId = nodes.recommendedId;
     if (!nodeId) throw new Error('No Luraph nodes available');
-    
+
     console.log(`Luraph: Using node ${nodeId}`);
     const jobId = await this.submitJob(script, fileName, nodeId);
     console.log(`Luraph: Job ${jobId} submitted, waiting...`);
-    
+
     await this.waitForJob(jobId);
     console.log(`Luraph: Job completed, downloading...`);
-    
+
     return this.downloadResult(jobId);
   }
 }
@@ -402,36 +420,36 @@ function generateMultiLayerData(): {
   for (let i = 0; i < 4; i++) {
     headerData.push(Math.floor(Math.random() * 4294967295));
   }
-  
+
   const hexChars = '0123456789abcdef';
-  
+
   let headerHex = '';
   for (let i = 0; i < 21; i++) {
     headerHex += String.fromCharCode(Math.floor(Math.random() * 200) + 32);
   }
-  
+
   const headerNum = Math.floor(Math.random() * 99999999);
-  
+
   let headerStr = '';
   for (let i = 0; i < 24; i++) {
     headerStr += String.fromCharCode(Math.floor(Math.random() * 200) + 32);
   }
-  
+
   const footerNum = Math.floor(Math.random() * 2147483647);
-  
+
   let footerHex = '';
   for (let i = 0; i < 200; i++) {
     footerHex += hexChars[Math.floor(Math.random() * 16)];
   }
-  
+
   const patternChars = 'ABCDEFRL0123456789._-';
   let footerStr = '';
   for (let i = 0; i < 100; i++) {
     footerStr += patternChars[Math.floor(Math.random() * patternChars.length)];
   }
-  
+
   const checksum = Math.floor(Math.random() * 99999999);
-  
+
   return {
     headerData,
     headerHex,
@@ -490,14 +508,14 @@ function generateLayer1(supabaseUrl: string, scriptId: string, initVersion: stri
   const encData = generateMultiLayerData();
   // Stable cache folder (avoid daily cache misses)
   const cacheFolder = `static_content_${scriptId.substring(0, 8)}`;
-  
+
   // Generate obfuscated binary data blob (like Luarmor's _bsdata0)
   const binaryBlob = generateBinaryDataBlob(scriptId, initVersion);
-  
+
   // Luarmor-style anti-env-log check FIRST (identity checks + env logger probes + C function validation)
   // This runs before ANY other code to detect sandboxed environments
   const antiEnvCheck = generateCompactAntiEnvCheck();
-  
+
   // Ultra-compact loader - matches Luarmor's ~6 line format with anti-env at start
   // CRITICAL: layer=2 to fetch the next layer, not loop back to layer 1
   return `${antiEnvCheck}_bsdata0={${encData.headerData.join(',')},"${binaryBlob.escapedKey}",${encData.headerNum},${encData.footerNum},"${binaryBlob.escapedSalt}","${encData.footerHex}","${binaryBlob.signature}",${encData.checksum}};
@@ -519,20 +537,20 @@ function generateBinaryDataBlob(scriptId: string, version: string): {
     keyBytes.push(Math.floor(Math.random() * 200) + 32);
   }
   const escapedKey = keyBytes.map(b => `\\${b}`).join('');
-  
+
   const saltBytes: number[] = [];
   for (let i = 0; i < 24; i++) {
     saltBytes.push(Math.floor(Math.random() * 200) + 32);
   }
   const escapedSalt = saltBytes.map(b => `\\${b}`).join('');
-  
+
   // Generate Luarmor-style signature pattern
   const sigChars = 'ABCDEFRL0123456789._-';
   let signature = '';
   for (let i = 0; i < 140; i++) {
     signature += sigChars[Math.floor(Math.random() * sigChars.length)];
   }
-  
+
   return { escapedKey, escapedSalt, signature };
 }
 
@@ -545,10 +563,10 @@ function generateLayer2(supabaseUrl: string, scriptId: string, initVersion: stri
   const cacheFolder = `static_content_${scriptId.substring(0, 8)}`;
   const version = `17.0.${Math.floor(Math.random() * 999)}`;
   const escapeSeq = generateEscapeSequences(24);
-  
+
   // Get the Luarmor-style advanced anti-env-log check (more thorough for Layer 2)
   const antiEnvLogCheck = generateLuarmorStyleAntiEnvLog();
-  
+
   return `--[[
         ShadowAuth V17 bootstrapper for scripts. 
  this code fetches & updates & encrypts & decrypts cached ShadowAuth scripts in the folder named static_content.../
@@ -609,9 +627,9 @@ return error("[ShadowAuth] Layer 3 unavailable")
 // Runs full anti-hook detection before Layer 4
 // =====================================================
 function generateLayer3(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g, 
+  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g,
     `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`);
-  
+
   return `--[[${WOLF_ASCII}
     ShadowAuth Protected Script - Layer 3
     Anti-Hook Detection + Integrity Verification
@@ -647,7 +665,7 @@ return error("[ShadowAuth] Layer 4 unavailable")
 // =====================================================
 function generateLayer4Wrapper(supabaseUrl: string, scriptId: string, initVersion: string): string {
   const escapeSeq = generateEscapeSequences(16);
-  
+
   return `--[[${WOLF_ASCII}
     ShadowAuth Protected Script - Layer 4 (Core)
     Escape: ${escapeSeq}
@@ -682,7 +700,7 @@ function generateLayer5(supabaseUrl: string, scriptId: string, initVersion: stri
   const funcName = generateRandomVarName(12);
   const sessionSalt = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
   const escapeSeq = generateEscapeSequences(20);
-  
+
   return `--[[${WOLF_ASCII}
     ShadowAuth Protected Script - Layer 5 (Validation)
     Escape: ${escapeSeq}
@@ -1191,7 +1209,7 @@ end
 // =====================================================
 function generateLayer6(scriptId: string, salt: string): string {
   const targetSize = 100 * 1024; // 100KB - reduced for performance
-  
+
   const hexChars = '0123456789abcdef';
   const generateHexBlock = (size: number): string => {
     let result = '';
@@ -1200,7 +1218,7 @@ function generateLayer6(scriptId: string, salt: string): string {
     }
     return result;
   };
-  
+
   // Generate random numbers for "bytecode" look
   const generateFakeNumbers = (count: number): string => {
     const nums: number[] = [];
@@ -1209,7 +1227,7 @@ function generateLayer6(scriptId: string, salt: string): string {
     }
     return nums.join(',');
   };
-  
+
   // IMPORTANT: Return valid Lua code, not JSON
   const luaCode = `--[=[
 SHADOWAUTH SUPERFLOW BYTECODE V7.0
@@ -1271,7 +1289,7 @@ async function obfuscateWithLuraph(code: string, layerName: string): Promise<str
     console.warn(`Luraph: No API key for ${layerName}`);
     return code;
   }
-  
+
   try {
     console.log(`Luraph: Obfuscating ${layerName}...`);
     const luraph = new LuraphClient(luraphApiKey);
@@ -1293,14 +1311,14 @@ serve(async (req) => {
   const ua = req.headers.get("user-agent") || "";
   const sig = req.headers.get("x-shadow-sig");
   const hwid = req.headers.get("x-shadow-hwid") || "";
-  
+
   // Check blacklist using Deno KV (persistent)
   const blacklistCheck = await isBlacklisted(clientIP, hwid);
   if (blacklistCheck.blocked) {
     console.log(`[KV] Blocked blacklisted: IP=${clientIP}, HWID=${hwid}`);
     return unauthorizedResponse(req);
   }
-  
+
   // Rate limiting using Deno KV (persistent)
   const rateLimit = await checkRateLimit(`loader:${clientIP}`, 30, 30000);
   if (!rateLimit.allowed) {
@@ -1319,23 +1337,29 @@ serve(async (req) => {
     const pathParts = url.pathname.split("/").filter(Boolean);
     const scriptId = pathParts[pathParts.length - 1];
 
-    if (!scriptId || scriptId.length < 30) {
-      return new Response(`error("Invalid")`, { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
-    }
+    console.log(`[DEBUG] Received request for Script ID: "${scriptId}"`);
+    console.log(`[DEBUG] Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: script } = await supabase
+    const { data: script, error: fetchError } = await supabase
       .from("scripts")
       .select("id, name, content, updated_at")
-      .eq("id", scriptId)
-      .single();
+      .or(`id.eq.${scriptId},loader_token.eq.${scriptId}`)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error(`[ERROR] Supabase fetch error:`, fetchError);
+    }
 
     if (!script) {
-      return new Response(`error("Not found")`, { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      console.error(`[ERROR] Script not found in DB: ${scriptId}`);
+      return new Response(`error("Script [${scriptId}] not found in database")`, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain" }
+      });
     }
 
     // IMPORTANT: Make initVersion stable per script content (fixes cache misses / slow loads).
@@ -1378,9 +1402,9 @@ serve(async (req) => {
     // =====================================================
     // LAYER ROUTING - Each layer is a separate HTTP response
     // =====================================================
-    
+
     const getLayerCacheKey = (layer: number) => `layer${layer}_${scriptId.substring(0, 8)}_${initVersion}`;
-    
+
     // LAYER 2: Bootstrapper
     if (layerParam === "2" || layerParam === "init") {
       console.log("Returning Layer 2: Bootstrapper");
@@ -1398,7 +1422,7 @@ serve(async (req) => {
           }
         });
       }
-      
+
       const cacheKey = getLayerCacheKey(2);
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
@@ -1406,14 +1430,14 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "2", "X-Build": "mem" }
         });
       }
-      
+
       const rawCode = generateLayer2(supabaseUrl!, scriptId, initVersion);
       const protectedCode = await obfuscateWithLuraph(rawCode, `layer2_${scriptId.substring(0, 8)}`);
-      
+
       loaderCache.set(cacheKey, { code: protectedCode, timestamp: Date.now() });
       // Persist for future (Luarmor-style)
       await upsertBuildLayer(2, protectedCode);
-      
+
       return new Response(protectedCode, {
         headers: {
           ...corsHeaders,
@@ -1424,7 +1448,7 @@ serve(async (req) => {
         }
       });
     }
-    
+
     // LAYER 3: ASCII Wrapper 1
     if (layerParam === "3") {
       console.log("Returning Layer 3: ASCII Wrapper 1");
@@ -1441,7 +1465,7 @@ serve(async (req) => {
           }
         });
       }
-      
+
       const cacheKey = getLayerCacheKey(3);
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
@@ -1449,13 +1473,13 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "3", "X-Build": "mem" }
         });
       }
-      
+
       const rawCode = generateLayer3(supabaseUrl!, scriptId, initVersion);
       const protectedCode = await obfuscateWithLuraph(rawCode, `layer3_${scriptId.substring(0, 8)}`);
-      
+
       loaderCache.set(cacheKey, { code: protectedCode, timestamp: Date.now() });
       await upsertBuildLayer(3, protectedCode);
-      
+
       return new Response(protectedCode, {
         headers: {
           ...corsHeaders,
@@ -1466,7 +1490,7 @@ serve(async (req) => {
         }
       });
     }
-    
+
     // LAYER 4: Core (Luraph Protected)
     if (layerParam === "4" || layerParam === "core") {
       console.log("Returning Layer 4: Luraph Protected Core");
@@ -1483,7 +1507,7 @@ serve(async (req) => {
           }
         });
       }
-      
+
       const cacheKey = getLayerCacheKey(4);
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
@@ -1492,13 +1516,13 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "4", "X-Build": "mem" }
         });
       }
-      
+
       const rawCode = generateLayer4Wrapper(supabaseUrl!, scriptId, initVersion);
       const protectedCode = await obfuscateWithLuraph(rawCode, `layer4_${scriptId.substring(0, 8)}`);
-      
+
       loaderCache.set(cacheKey, { code: protectedCode, timestamp: Date.now() });
       await upsertBuildLayer(4, protectedCode);
-      
+
       const finalCode = protectedCode.replace(/__SESSION_SALT__/g, sessionSalt);
       return new Response(finalCode, {
         headers: {
@@ -1510,7 +1534,7 @@ serve(async (req) => {
         }
       });
     }
-    
+
     // LAYER 5: Validation Wrapper
     if (layerParam === "5") {
       console.log("Returning Layer 5: Validation Wrapper");
@@ -1527,7 +1551,7 @@ serve(async (req) => {
           }
         });
       }
-      
+
       const cacheKey = getLayerCacheKey(5);
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
@@ -1536,13 +1560,13 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "5", "X-Build": "mem" }
         });
       }
-      
+
       const rawCode = generateLayer5(supabaseUrl!, scriptId, initVersion);
       const protectedCode = await obfuscateWithLuraph(rawCode, `layer5_${scriptId.substring(0, 8)}`);
-      
+
       loaderCache.set(cacheKey, { code: protectedCode, timestamp: Date.now() });
       await upsertBuildLayer(5, protectedCode);
-      
+
       const finalCode = protectedCode.replace(/__SESSION_SALT__/g, sessionSalt);
       return new Response(finalCode, {
         headers: {
@@ -1568,40 +1592,40 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "text/plain" }
       });
     }
-    
+
     // LAYER 6: SuperflowBytecode (16MB)
     if (layerParam === "6" || layerParam === "superflow" || layerParam === "bytecode") {
       console.log("Returning Layer 6: SuperflowBytecode (16MB)");
-      
+
       const cacheKey = `superflow_${scriptId.substring(0, 8)}_${initVersion}`;
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 600000) {
         console.log(`Layer 6 cache hit: ${cached.code.length} bytes`);
         return new Response(cached.code, {
-          headers: { 
-            ...corsHeaders, 
+          headers: {
+            ...corsHeaders,
             "Content-Type": "text/plain",
             "X-Layer": "6-superflow",
             "X-Size": cached.code.length.toString()
           }
         });
       }
-      
+
       const superflowCode = generateLayer6(scriptId, sessionSalt);
       loaderCache.set(cacheKey, { code: superflowCode, timestamp: Date.now() });
-      
+
       console.log(`SuperflowBytecode generated: ${(superflowCode.length / 1024 / 1024).toFixed(2)}MB`);
-      
+
       return new Response(superflowCode, {
-        headers: { 
-          ...corsHeaders, 
+        headers: {
+          ...corsHeaders,
           "Content-Type": "text/plain",
           "X-Layer": "6-superflow",
           "X-Size": superflowCode.length.toString()
         }
       });
     }
-    
+
     // LAYER 7: Kick Handler
     if (layerParam === "7" || layerParam === "kick") {
       console.log("Returning Layer 7: Kick Handler");
@@ -1610,22 +1634,22 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "7" }
       });
     }
-    
+
     // =====================================================
     // DEFAULT: LAYER 1 - Initial Loader
     // =====================================================
     console.log("Returning Layer 1: Initial Loader");
     const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion);
-    
+
     return new Response(layer1Code, {
       headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1" }
     });
 
   } catch (error) {
     console.error("Loader error:", error);
-    return new Response(`error("Server error")`, { 
-      status: 500, 
-      headers: { ...corsHeaders, "Content-Type": "text/plain" } 
+    return new Response(`error("Server error")`, {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "text/plain" }
     });
   }
 });
