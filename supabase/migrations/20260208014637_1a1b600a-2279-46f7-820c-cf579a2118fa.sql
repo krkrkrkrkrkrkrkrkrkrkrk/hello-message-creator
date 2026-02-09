@@ -1,0 +1,2 @@
+
+ALTER TABLE public.community_scripts ADD COLUMN IF NOT EXISTS views INTEGER NOT NULL DEFAULT 0;
