@@ -223,11 +223,15 @@ serve(async (req) => {
     }
 
     // SINGLE QUERY: Fetch script with content and settings INCLUDING Luarmor modes
-    const { data: script } = await supabase
+    const { data: script, error: scriptError } = await supabase
       .from("scripts")
-      .select("id, name, content, discord_webhook_url, discord_webhook_enabled, secure_core_enabled, anti_tamper_enabled, anti_debug_enabled, hwid_lock_enabled, execution_count, ffa_mode, silent_mode, heartbeat_enabled, lightning_mode")
+      .select("id, name, content, discord_webhook_url, discord_webhook_enabled, secure_core_enabled, anti_tamper_enabled, anti_debug_enabled, hwid_lock_enabled, execution_count")
       .eq("id", script_id)
       .single();
+
+    if (scriptError) {
+      console.error("Script fetch error:", scriptError);
+    }
 
     if (!script) {
       return new Response(JSON.stringify({ valid: false, message: "Script not found" }), {
@@ -237,8 +241,7 @@ serve(async (req) => {
     
     // Update execution count on script
     supabase.from("scripts").update({ 
-      execution_count: (script.execution_count || 0) + 1,
-      last_execution_at: new Date().toISOString()
+      execution_count: (script.execution_count || 0) + 1
     }).eq("id", script_id).then(() => {});  // Fire and forget
 
     // ==================== FFA MODE (LUARMOR) ====================
@@ -267,7 +270,7 @@ serve(async (req) => {
     let keyData: KeyDataType;
     let discordUsername: string | null = null;
     
-    if (script.ffa_mode) {
+    if (false) { // ffa_mode not yet implemented
       console.log(`FFA mode enabled for script ${script_id} - skipping key validation`);
       // Create fake key data for FFA mode
       keyData = {
@@ -294,7 +297,7 @@ serve(async (req) => {
       // Validate key - include all Luarmor fields
       const { data: fetchedKey } = await supabase
         .from("script_keys")
-        .select("*, discord_avatar_url, key_days, activated_at, status, ban_reason, ban_expire, unban_token, total_resets, last_reset")
+        .select("*")
         .eq("key_value", key)
         .eq("script_id", script_id)
         .single();
@@ -345,7 +348,7 @@ serve(async (req) => {
 
     // ==================== KEY_DAYS ACTIVATION (LUARMOR) ====================
     // If key has key_days but no activated_at, this is first use - activate it
-    if (!script.ffa_mode && keyData.key_days && !keyData.activated_at && keyData.id) {
+    if (keyData.key_days && !keyData.activated_at && keyData.id) {
       const activationResult = await supabase.rpc("activate_key_on_first_use", {
         p_key_id: keyData.id
       });
@@ -364,7 +367,7 @@ serve(async (req) => {
 
     // HWID handling (skip for FFA mode)
     const hashedHwid = hwid ? await hashHWID(hwid) : null;
-    if (!script.ffa_mode && keyData.id) {
+    if (keyData.id) {
       if (hashedHwid && keyData.hwid && keyData.hwid !== hashedHwid) {
         if ((keyData.hwid_reset_count || 0) >= 2) {
           return new Response(JSON.stringify({ valid: false, message: "HWID mismatch" }), {
@@ -420,19 +423,12 @@ serve(async (req) => {
         // Create new session
         await supabase.from("websocket_sessions").insert({
           script_id,
-          key_id: keyData.id,
           hwid: hashedHwid?.substring(0, 32) || null,
           ip_address: clientIP,
           username: roblox_username,
           executor: executor,
-          session_token: sessionToken,
           status: "active",
           is_connected: true,
-          metadata: {
-            roblox_user_id,
-            country,
-            loader_version: body.loader_version || "unknown"
-          }
         });
       }
       console.log(`Session registered for ${roblox_username} (${clientIP})`);
@@ -448,9 +444,8 @@ serve(async (req) => {
       hwid: hashedHwid?.substring(0, 32),
       executor_ip: clientIP, 
       executor_type: executor, 
-      roblox_username, 
-      roblox_user_id,
-      country: country // NOW POPULATED!
+      roblox_username,
+      country: country || null
     });
 
     // ==================== DISCORD WEBHOOK (PANDAAUTH PATTERN) ====================
