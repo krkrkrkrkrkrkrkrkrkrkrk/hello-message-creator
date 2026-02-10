@@ -669,13 +669,17 @@ export type Database = {
           discord_webhook_url: string | null
           enable_spy_warnings: boolean
           execution_count: number
+          ffa_mode: boolean
+          heartbeat_enabled: boolean
           hwid_lock_enabled: boolean
           id: string
           key_provider_id: string | null
+          lightning_mode: boolean
           loader_token: string | null
           name: string
           secure_core_enabled: boolean
           share_code: string | null
+          silent_mode: boolean
           updated_at: string
           user_id: string
         }
@@ -690,13 +694,17 @@ export type Database = {
           discord_webhook_url?: string | null
           enable_spy_warnings?: boolean
           execution_count?: number
+          ffa_mode?: boolean
+          heartbeat_enabled?: boolean
           hwid_lock_enabled?: boolean
           id?: string
           key_provider_id?: string | null
+          lightning_mode?: boolean
           loader_token?: string | null
           name: string
           secure_core_enabled?: boolean
           share_code?: string | null
+          silent_mode?: boolean
           updated_at?: string
           user_id: string
         }
@@ -711,13 +719,17 @@ export type Database = {
           discord_webhook_url?: string | null
           enable_spy_warnings?: boolean
           execution_count?: number
+          ffa_mode?: boolean
+          heartbeat_enabled?: boolean
           hwid_lock_enabled?: boolean
           id?: string
           key_provider_id?: string | null
+          lightning_mode?: boolean
           loader_token?: string | null
           name?: string
           secure_core_enabled?: boolean
           share_code?: string | null
+          silent_mode?: boolean
           updated_at?: string
           user_id?: string
         }

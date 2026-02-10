@@ -201,20 +201,11 @@ const unauthorizedHTML = `<!DOCTYPE html>
 </html>`;
 
 function wantsHtml(req: Request): boolean {
-  const headersObj: Record<string, string> = {};
-  req.headers.forEach((v, k) => { headersObj[k] = v; });
-  console.log(`[DEBUG] wantsHtml: All Headers = ${JSON.stringify(headersObj)}`);
-
   const accept = (req.headers.get("accept") || "").toLowerCase();
   const ua = (req.headers.get("user-agent") || "").toLowerCase();
   const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
 
-  console.log(`[DEBUG] wantsHtml: accept="${accept}", ua="${ua}", dest="${secFetchDest}"`);
-
-  // Browsers usually send sec-fetch-dest: document for navigations
   if (secFetchDest === "document") return true;
-
-  // Traditional checks
   if (accept.includes("text/html")) return true;
   if (/\bmozilla\b|\bchrome\b|\bsafari\b|\bedg\b|\bfirefox\b/.test(ua)) return true;
 
@@ -223,10 +214,8 @@ function wantsHtml(req: Request): boolean {
 
 function unauthorizedResponse(req: Request): Response {
   const isHtml = wantsHtml(req);
-  console.log(`[DEBUG] unauthorizedResponse: isHtml=${isHtml}`);
 
   if (isHtml) {
-    console.log(`[DEBUG] Returning HTML Response with forced headers`);
     return new Response(unauthorizedHTML, {
       status: 200,
       headers: {
@@ -657,7 +646,6 @@ ${generateSafeLoadstring()}
 ${antiHookCode}
 
 -- Continue execution silently
-print("[ShadowAuth] Loading...")
 
 -- Fetch Layer 4 via HTTP
 local _url4 = "${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}"
@@ -1194,10 +1182,13 @@ local ${funcName} = function()
         end
       else
         local msg = data and data.message or "Validation failed"
-        updateStatus("❌ " .. msg, Color3.fromRGB(255, 100, 100))
+        if msg == "Unauthorized" or msg:find("incompatible") then
+          updateStatus("❌ Executor is incompatible. Use Volt or Wave.", Color3.fromRGB(255, 100, 100))
+        else
+          updateStatus("❌ " .. msg, Color3.fromRGB(255, 100, 100))
+        end
         task.wait(2)
         closeGui(false)
-        error(msg)
       end
     else
       updateStatus("❌ Server unavailable", Color3.fromRGB(255, 100, 100))
@@ -1343,7 +1334,6 @@ serve(async (req) => {
   }
 
   if (!sig && !isExecutor(ua) && !isLikelyExecutorRequest(req)) {
-    console.log(`[DEBUG] Blocked: no sig, not executor UA="${ua}"`);
     return unauthorizedResponse(req);
   }
 
@@ -1354,8 +1344,7 @@ serve(async (req) => {
     const pathParts = url.pathname.split("/").filter(Boolean);
     const scriptId = pathParts[pathParts.length - 1];
 
-    console.log(`[DEBUG] Received request for Script ID: "${scriptId}"`);
-    console.log(`[DEBUG] Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
+
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

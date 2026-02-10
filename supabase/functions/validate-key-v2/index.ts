@@ -160,8 +160,8 @@ serve(async (req) => {
   const sig = req.headers.get("x-shadow-sig");
   
   if (!sig && !isExecutor(ua)) {
-    await logRequest(401, "Unauthorized - no executor");
-    return new Response(JSON.stringify({ valid: false, message: "Unauthorized" }), {
+    await logRequest(401, "Unauthorized - incompatible executor");
+    return new Response(JSON.stringify({ valid: false, message: "Executor is incompatible. Use Volt or Wave." }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -225,7 +225,7 @@ serve(async (req) => {
     // SINGLE QUERY: Fetch script with content and settings INCLUDING Luarmor modes
     const { data: script, error: scriptError } = await supabase
       .from("scripts")
-      .select("id, name, content, discord_webhook_url, discord_webhook_enabled, secure_core_enabled, anti_tamper_enabled, anti_debug_enabled, hwid_lock_enabled, execution_count")
+      .select("id, name, content, discord_webhook_url, discord_webhook_enabled, secure_core_enabled, anti_tamper_enabled, anti_debug_enabled, hwid_lock_enabled, execution_count, ffa_mode, silent_mode, heartbeat_enabled, lightning_mode")
       .eq("id", script_id)
       .single();
 
