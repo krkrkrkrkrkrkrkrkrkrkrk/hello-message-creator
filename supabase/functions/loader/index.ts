@@ -247,8 +247,24 @@ function unauthorizedResponse(req: Request): Response {
 function isExecutor(ua: string): boolean {
   const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i,
     /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i,
-    /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i];
+    /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i,
+    /wininet/i, /winhttp/i, /httpget/i, /exploiter/i, /macsploit/i, /calamari/i, /coco/i,
+    /sirhurt/i, /protosmasher/i, /rc7/i, /elysian/i, /proxo/i, /vega\s?x/i, /swift/i,
+    /xeno/i, /krampus/i, /aspect/i, /codex/i, /nezur/i, /ro-exec/i, /roexec/i];
   return patterns.some(p => p.test(ua));
+}
+
+function isLikelyExecutorRequest(req: Request): boolean {
+  const accept = (req.headers.get("accept") || "").toLowerCase();
+  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+  // Executors typically don't send accept or sec-fetch-dest headers, or send */*
+  if (!accept || accept === "*/*" || accept === "") {
+    // Also ensure it's NOT a browser navigation
+    if (secFetchDest !== "document" && !accept.includes("text/html")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
@@ -1326,7 +1342,8 @@ serve(async (req) => {
     return unauthorizedResponse(req);
   }
 
-  if (!sig && !isExecutor(ua)) {
+  if (!sig && !isExecutor(ua) && !isLikelyExecutorRequest(req)) {
+    console.log(`[DEBUG] Blocked: no sig, not executor UA="${ua}"`);
     return unauthorizedResponse(req);
   }
 
