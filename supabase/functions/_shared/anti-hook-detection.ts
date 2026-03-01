@@ -36,166 +36,69 @@ export function generateAntiHookCode(): string {
   
   return `
 -- =====================================================
--- SHADOWAUTH ANTI-HOOK DETECTION V5.0
--- Enhanced with V3rmillion forum techniques
+-- SHADOWAUTH ANTI-HOOK DETECTION V5.1
+-- Scoring system - tolerant of executor differences
 -- =====================================================
 
--- Phase 0: Heartbeat timing check (ensures real Roblox runtime)
-do
+local __SA_SUSPICION = 0
+
+-- Phase 0: Heartbeat timing check
+pcall(function()
   local _hbCount = 0
   local _hbConn = game:GetService("RunService").Heartbeat:Connect(function()
     _hbCount = _hbCount + 1
   end)
   repeat task.wait() until _hbCount >= 2
   if _hbConn then _hbConn:Disconnect() end
-end
+end)
 
--- Phase 1: V3rmillion-style Environment Logger Detection
-local ${envLogVar} = (function()
-  -- Core function existence
-  if not getmetatable or not setmetatable or not pcall or not debug or not rawget or not rawset then
-    return false, "missing_core_functions"
-  end
-  
-  -- rawset functionality (env loggers often break this)
-  local rawsetOk = pcall(rawset, {}, " ", " ")
-  if not rawsetOk then return false, "rawset_broken" end
-  
-  if not select then return false, "select_missing" end
-  
-  -- debug.info availability
-  local debugInfoOk, debugInfo = pcall(rawget, debug, "info")
-  if not debugInfoOk or not debugInfo then return false, "debug_info_missing" end
-  
-  -- C function source signature check
-  local function isCFunction(fn)
-    local ok, source = pcall(function() return debugInfo(fn, "s") end)
-    return ok and source == "[C]"
-  end
-  
-  if not isCFunction(print) then return false, "print_hooked" end
-  if not isCFunction(require) then return false, "require_hooked" end
-  if not isCFunction(pcall) then return false, "pcall_hooked" end
-  if not isCFunction(rawget) then return false, "rawget_hooked" end
-  if not isCFunction(rawset) then return false, "rawset_hooked" end
-  
-  -- debug.info arity check (V3rmillion: function name length must be > 1)
-  local printNameLen = #(debugInfo(getfenv, "n") or "")
-  if printNameLen <= 1 then return false, "debug_info_arity_fail" end
-  local printNameLen2 = #(debugInfo(print, "n") or "")
-  if printNameLen2 <= 1 then return false, "debug_info_name_fail" end
-  
-  -- debug.info arg count check on print
-  local printArgInfo = {debugInfo(print, "a")}
-  if printArgInfo[1] ~= 0 then return false, "print_arg_mismatch" end
-  if printArgInfo[2] ~= true then return false, "print_vararg_mismatch" end
-  
-  -- getfenv(69) boundary check (must fail in real env)
-  local gfOk = select(1, pcall(getfenv, 69))
-  if gfOk == true then return false, "getfenv_boundary_fail" end
-  
-  -- game.GetService check
-  if type(game) == "userdata" then
-    local gameGetService = game.GetService
-    if gameGetService and not isCFunction(gameGetService) then
-      return false, "getservice_hooked"
-    end
-  end
-  
-  -- Lua function must NOT report "[C]"
-  local testFn = function() end
-  local testOk, testSrc = pcall(function() return debugInfo(testFn, "s") end)
-  if testOk and testSrc == "[C]" then return false, "lua_fn_reports_c" end
-  
-  -- Coroutine wrap check (dead coroutine debug.info must fail)
-  local coroCheckOk = select(1, pcall(debugInfo, coroutine.wrap(function() end)(), "s"))
-  if coroCheckOk ~= false then return false, "coro_debug_fail" end
-  
-  return true, nil
-end)()
-
-if not ${envLogVar} then return nil end
-
--- Phase 2: debug.traceback sandbox string detection
-do
-  local _tb = (debug.traceback() or ""):lower()
-  if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
-    return nil
-  end
-end
-
--- Phase 3: Instance method existence check (env loggers fake Instance.new)
-do
+-- Phase 1: Instance method check (HIGH confidence)
+pcall(function()
   local _imOk = pcall(function()
     Instance.new("Part"):${generateRandomVarName(14)}("a")
   end)
-  -- In real Roblox, calling a nonexistent method MUST error
-  if _imOk then return nil end
-end
+  if _imOk then __SA_SUSPICION = __SA_SUSPICION + 5 end
+end)
 
--- Phase 4: game:GetChildren() count (real game has many services)
-do
-  local _gc = #game:GetChildren()
-  if _gc <= 4 then return nil end
-end
+-- Phase 2: debug.traceback sandbox strings (HIGH confidence)
+pcall(function()
+  local _tb = (debug.traceback() or ""):lower()
+  if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
+    __SA_SUSPICION = __SA_SUSPICION + 5
+  end
+end)
 
--- Phase 5: JSONDecode null handling (null must become nil in real Roblox)
-do
+-- Phase 3: Metatable on core functions (HIGH confidence)
+pcall(function()
+  if getmetatable(require) then __SA_SUSPICION = __SA_SUSPICION + 3 end
+  if getmetatable(print) then __SA_SUSPICION = __SA_SUSPICION + 3 end
+  if getmetatable(error) then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
+
+-- Phase 4: game:GetChildren count (MEDIUM confidence)
+pcall(function()
+  if #game:GetChildren() <= 4 then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
+
+-- Phase 5: JSONDecode null handling (MEDIUM confidence)
+pcall(function()
   local _jOk, _jRes = pcall(function()
     return game:GetService("HttpService"):JSONDecode('[42,"test",true,123,false,[321,null,"check"],null,["a"]]')
   end)
-  if not _jOk then return nil end
-  if _jRes and _jRes[6] and _jRes[6][2] ~= nil then return nil end
-end
+  if _jOk and _jRes and _jRes[6] and _jRes[6][2] ~= nil then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
 
--- Phase 6: game() error message validation
-do
-  local _, _gMsg = pcall(function() game() end)
-  if type(_gMsg) == "string" and not _gMsg:find("attempt to call a Instance value") then
-    return nil
-  end
-end
-
--- Phase 7: _G → getfenv leak detection
-do
+-- Phase 6: _G → getfenv leak (LOW confidence - some executors differ)
+pcall(function()
   local _gKey = "${generateRandomVarName(10)}"
   _G[_gKey] = "${generateRandomVarName(8)}"
   local _leaked = getfenv()[_gKey] ~= nil
   _G[_gKey] = nil
-  if _leaked then return nil end
-end
+  if _leaked then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
 
--- Phase 8: game.ServiceAdded existence check
-do
-  if not game.ServiceAdded then return nil end
-end
-
--- Phase 9: isfunctionhooked validation (if executor supports it)
-do
-  if isfunctionhooked then
-    -- Check http functions
-    pcall(function()
-      if http and http.request and isfunctionhooked(http.request) then return nil end
-      if request and isfunctionhooked(request) then return nil end
-      if http_request and isfunctionhooked(http_request) then return nil end
-    end)
-    
-    -- hookfunction + isfunctionhooked coherence test
-    if hookfunction then
-      local _testFn = function() end
-      if isfunctionhooked(_testFn) then return nil end -- fresh function can't be hooked
-      hookfunction(_testFn, function() end)
-      if not isfunctionhooked(_testFn) then return nil end -- must detect hook
-    end
-  end
-end
-
--- Phase 10: Metatable checks on core functions (must be nil)
-do
-  if getmetatable(require) then return nil end
-  if getmetatable(print) then return nil end
-  if getmetatable(error) then return nil end
-end
+-- Block if suspicion is high
+if __SA_SUSPICION >= 5 then return nil end
 
 local ${hookCheckVar} = function()
   local ${integrityVar} = true
@@ -300,161 +203,125 @@ _G.__SA_ANTI_HOOK = {
 `;
 }
 
-// Compact anti-env-log check for Layer 1 (single-line, no comments)
+// Compact anti-env-log check for Layer 1 (tolerant - wraps risky checks in pcall)
 export function generateCompactAntiEnvCheck(): string {
   const methodName = generateRandomVarName(14);
-  const gKey = generateRandomVarName(10);
-  const gVal = generateRandomVarName(8);
   
-  return `do local _hc=0;local _cn=game:GetService("RunService").Heartbeat:Connect(function()_hc=_hc+1 end)repeat task.wait()until _hc>=2;if _cn then _cn:Disconnect()end end;do if require~=require or print~=print or pcall~=pcall then return nil end;if rawequal and(not rawequal(require,require)or not rawequal(print,print))then return nil end;if debug and debug.info then local function c(fn)local o,s=pcall(debug.info,fn,"s")return not o or s=="[C]"end;if not c(print)or not c(require)or not c(pcall)or not c(getfenv)then return nil end;local function lf()end;local lo,ls=pcall(debug.info,lf,"s")if lo and ls=="[C]"then return nil end end;if select(1,pcall(getfenv,69))==true then return nil end end;do local _io=pcall(function()Instance.new("Part"):${methodName}("a")end)if _io then return nil end end;do if #game:GetChildren()<=4 then return nil end end;do local _jo,_jr=pcall(function()return game:GetService("HttpService"):JSONDecode('[42,"t",true,1,false,[3,null,"c"],null]')end)if not _jo then return nil end;if _jr and _jr[6]and _jr[6][2]~=nil then return nil end end;do local _,_gm=pcall(function()game()end)if type(_gm)=="string"and not _gm:find("attempt to call a Instance value")then return nil end end;do _G.${gKey}="${gVal}";local _lk=getfenv().${gKey}~=nil;_G.${gKey}=nil;if _lk then return nil end end;do if getmetatable(require)or getmetatable(print)or getmetatable(error)then return nil end end;do local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("25ms")then return nil end end;`;
+  // Layer 1 must be VERY tolerant - only block obvious env loggers, not legitimate executors
+  // All checks wrapped in pcall to avoid killing script on unsupported features
+  return `do local _hc=0;local _cn;pcall(function()_cn=game:GetService("RunService").Heartbeat:Connect(function()_hc=_hc+1 end)end)if _cn then repeat task.wait()until _hc>=2;pcall(function()_cn:Disconnect()end)end end;do local _s=0;pcall(function()if getmetatable(require)then _s=_s+1 end;if getmetatable(print)then _s=_s+1 end end);pcall(function()local _io=pcall(function()Instance.new("Part"):${methodName}("a")end)if _io then _s=_s+3 end end);pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("25ms")then _s=_s+3 end end);if _s>=3 then return nil end end;`;
 }
 
-// Luarmor-style advanced anti-env-log check for Layer 2
+// Luarmor-style advanced anti-env-log check for Layer 2 (scoring system - tolerant)
 export function generateLuarmorStyleAntiEnvLog(): string {
   const methodName = generateRandomVarName(14);
   const gKey = generateRandomVarName(10);
   const gVal = generateRandomVarName(8);
   
   return `
--- ShadowAuth Anti-Environment Logger V5.0
--- Heartbeat + Identity + C-function + Instance + JSONDecode + traceback + isfunctionhooked
+-- ShadowAuth Anti-Environment Logger V5.1 (Scoring System)
+-- Uses a score-based approach: only blocks if multiple indicators fire
+-- This prevents false positives on legitimate executors (Wave, Volt, etc.)
 do
-  -- Heartbeat timing (ensures real Roblox runtime, not static analysis)
-  local _hbCnt = 0
-  local _hbC = game:GetService("RunService").Heartbeat:Connect(function() _hbCnt = _hbCnt + 1 end)
-  repeat task.wait() until _hbCnt >= 2
-  if _hbC then _hbC:Disconnect() end
+  local _suspicion = 0
   
-  local fenv = getfenv()
-  
-  -- Identity checks
-  if require ~= require then return nil end
-  if print ~= print then return nil end
-  if pcall ~= pcall then return nil end
-  if loadstring ~= loadstring then return nil end
-  if getfenv ~= getfenv then return nil end
-  if setfenv ~= setfenv then return nil end
-  
-  -- getfenv(69) boundary (must fail)
-  if select(1, pcall(getfenv, 69)) == true then return nil end
-  
-  -- Metatable checks (core functions must have no metatable)
-  if getmetatable(require) then return nil end
-  if getmetatable(print) then return nil end
-  if getmetatable(error) then return nil end
-  
-  -- Env logger variable probes
-  local envLoggerVars = {
-    "superflow_bytecode_ext0", "hi", "env_log", "_env_hook", 
-    "script_spy", "remote_spy_hook", "_G_hook", "global_hook",
-    "fenv_interceptor", "bytecode_dump", "debug_hook_active",
-    "_25mspredefine"
-  }
-  for _, varName in ipairs(envLoggerVars) do
-    if fenv[varName] ~= nil then return nil end
-    if rawget(_G, varName) ~= nil then return nil end
-  end
-  
-  -- getfenv consistency
-  local fenv1 = getfenv()
-  local fenv2 = getfenv()
-  if fenv1 ~= fenv2 then return nil end
-  
-  -- rawequal checks
-  if rawequal then
-    if not rawequal(require, require) then return nil end
-    if not rawequal(print, print) then return nil end
-    if not rawequal(loadstring, loadstring) then return nil end
-  end
-  
-  -- debug.info C function source check
-  local function _cChk(f)
-    if not debug or not debug.info then return true end
-    local ok, src = pcall(debug.info, f, "s")
-    return not ok or src == "[C]"
-  end
-  if not _cChk(print) then return nil end
-  if not _cChk(require) then return nil end
-  if not _cChk(pcall) then return nil end
-  if not _cChk(rawget) then return nil end
-  if not _cChk(rawset) then return nil end
-  if not _cChk(getfenv) then return nil end
-  if not _cChk(setfenv) then return nil end
-  if game and game.GetService then
-    if not _cChk(game.GetService) then return nil end
-  end
-  
-  -- Lua function must NOT report "[C]"
-  local _tf = function() end
-  local _to, _ts = pcall(debug.info, _tf, "s")
-  if _to and _ts == "[C]" then return nil end
-  
-  -- Dead coroutine debug.info must fail
-  local _co = select(1, pcall(debug.info, coroutine.wrap(function() end)(), "s"))
-  if _co ~= false then return nil end
-  
-  -- debug.info arity checks
-  if debug and debug.info then
-    local _na = #((debug.info(getfenv, "n")) or "")
-    if _na <= 1 then return nil end
-    local _nb = #((debug.info(print, "n")) or "")
-    if _nb <= 1 then return nil end
-    local _pa = {debug.info(print, "a")}
-    if _pa[1] ~= 0 then return nil end
-    if _pa[2] ~= true then return nil end
-  end
-  
-  -- Instance method check (nonexistent method must error)
-  local _imOk = pcall(function()
-    Instance.new("Part"):${methodName}("a")
+  -- Heartbeat timing (ensures real Roblox runtime)
+  pcall(function()
+    local _hbCnt = 0
+    local _hbC = game:GetService("RunService").Heartbeat:Connect(function() _hbCnt = _hbCnt + 1 end)
+    repeat task.wait() until _hbCnt >= 2
+    if _hbC then _hbC:Disconnect() end
   end)
-  if _imOk then return nil end
   
-  -- game:GetChildren count (real game has many services)
-  if #game:GetChildren() <= 4 then return nil end
-  
-  -- JSONDecode null handling (null → nil in real Roblox)
-  local _jOk, _jRes = pcall(function()
-    return game:GetService("HttpService"):JSONDecode('[42,"t",true,123,false,[321,null,"chk"],null,["a"]]')
+  -- HIGH CONFIDENCE: Metatable on core functions (definite hook)
+  pcall(function()
+    if getmetatable(require) then _suspicion = _suspicion + 3 end
+    if getmetatable(print) then _suspicion = _suspicion + 3 end
+    if getmetatable(error) then _suspicion = _suspicion + 2 end
   end)
-  if not _jOk then return nil end
-  if _jRes and _jRes[6] and _jRes[6][2] ~= nil then return nil end
   
-  -- game() error message validation
-  local _, _gMsg = pcall(function() game() end)
-  if type(_gMsg) == "string" and not _gMsg:find("attempt to call a Instance value") then
-    return nil
-  end
-  
-  -- _G → getfenv leak detection
-  _G.${gKey} = "${gVal}"
-  local _leaked = getfenv().${gKey} ~= nil
-  _G.${gKey} = nil
-  if _leaked then return nil end
-  
-  -- game.ServiceAdded must exist
-  if not game.ServiceAdded then return nil end
-  
-  -- debug.traceback sandbox string detection
-  local _tb = (debug.traceback() or ""):lower()
-  if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
-    return nil
-  end
-  
-  -- isfunctionhooked checks (if executor supports it)
-  if isfunctionhooked then
-    pcall(function()
-      if http and http.request and isfunctionhooked(http.request) then return nil end
-      if request and isfunctionhooked(request) then return nil end
-      if http_request and isfunctionhooked(http_request) then return nil end
+  -- HIGH CONFIDENCE: Instance method must error
+  pcall(function()
+    local _imOk = pcall(function()
+      Instance.new("Part"):${methodName}("a")
     end)
-    if hookfunction then
-      local _tf2 = function() end
-      if isfunctionhooked(_tf2) then return nil end
-      hookfunction(_tf2, function() end)
-      if not isfunctionhooked(_tf2) then return nil end
+    if _imOk then _suspicion = _suspicion + 5 end
+  end)
+  
+  -- HIGH CONFIDENCE: debug.traceback sandbox strings
+  pcall(function()
+    local _tb = (debug.traceback() or ""):lower()
+    if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
+      _suspicion = _suspicion + 5
     end
-  end
+  end)
+  
+  -- MEDIUM CONFIDENCE: Env logger variable probes
+  pcall(function()
+    local fenv = getfenv()
+    local envLoggerVars = {
+      "superflow_bytecode_ext0", "env_log", "_env_hook", 
+      "script_spy", "remote_spy_hook", "_25mspredefine"
+    }
+    for _, varName in ipairs(envLoggerVars) do
+      if fenv[varName] ~= nil or rawget(_G, varName) ~= nil then 
+        _suspicion = _suspicion + 4
+        break
+      end
+    end
+  end)
+  
+  -- MEDIUM CONFIDENCE: JSONDecode null handling
+  pcall(function()
+    local _jOk, _jRes = pcall(function()
+      return game:GetService("HttpService"):JSONDecode('[42,"t",true,123,false,[321,null,"chk"],null]')
+    end)
+    if _jOk and _jRes and _jRes[6] and _jRes[6][2] ~= nil then
+      _suspicion = _suspicion + 2
+    end
+  end)
+  
+  -- LOW CONFIDENCE: debug.info C function checks (some executors differ)
+  pcall(function()
+    if debug and debug.info then
+      local function _cChk(f)
+        local ok, src = pcall(debug.info, f, "s")
+        return not ok or src == "[C]"
+      end
+      if not _cChk(print) then _suspicion = _suspicion + 1 end
+      if not _cChk(require) then _suspicion = _suspicion + 1 end
+      
+      -- Lua function reporting "[C]" is suspicious
+      local _tf = function() end
+      local _to, _ts = pcall(debug.info, _tf, "s")
+      if _to and _ts == "[C]" then _suspicion = _suspicion + 2 end
+    end
+  end)
+  
+  -- LOW CONFIDENCE: game:GetChildren count
+  pcall(function()
+    if #game:GetChildren() <= 4 then _suspicion = _suspicion + 2 end
+  end)
+  
+  -- LOW CONFIDENCE: _G → getfenv leak
+  pcall(function()
+    _G.${gKey} = "${gVal}"
+    local _leaked = getfenv().${gKey} ~= nil
+    _G.${gKey} = nil
+    if _leaked then _suspicion = _suspicion + 2 end
+  end)
+  
+  -- isfunctionhooked checks
+  pcall(function()
+    if isfunctionhooked then
+      if http and http.request and isfunctionhooked(http.request) then _suspicion = _suspicion + 3 end
+      if request and isfunctionhooked(request) then _suspicion = _suspicion + 3 end
+    end
+  end)
+  
+  -- BLOCK: Only if suspicion score is high enough (multiple indicators)
+  -- Score >= 5 means at least one HIGH confidence or multiple MEDIUM/LOW
+  if _suspicion >= 5 then return nil end
 end
 `;
 }
