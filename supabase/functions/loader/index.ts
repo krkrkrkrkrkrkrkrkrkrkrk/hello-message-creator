@@ -946,6 +946,7 @@ local ${funcName} = function()
     updateStatus("🔐 Validating key...", Color3.fromRGB(100, 180, 255))
     
     local hw = gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId():gsub("-", "")
+    local tshw = _SA_TSHWID or "?"
     local sessionKey = "${sessionSalt}"
     
     local body = H:JSONEncode({
