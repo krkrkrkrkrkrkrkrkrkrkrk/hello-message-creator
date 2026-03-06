@@ -713,6 +713,12 @@ function generateLayer5(supabaseUrl: string, scriptId: string, initVersion: stri
 
 ${generateSafeLoadstring()}
 
+${generateTutorialStateHWID()}
+
+${generateFunctionHoneypots()}
+
+${generateTimeWindowGuard()}
+
 local ${funcName} = function()
   local Players = game:GetService("Players")
   local TweenService = game:GetService("TweenService")
