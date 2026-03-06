@@ -953,13 +953,15 @@ local ${funcName} = function()
       key = K,
       script_id = "${scriptId}",
       hwid = hw,
+      tshwid = tshw,
       roblox_username = P.Name,
       roblox_user_id = tostring(P.UserId),
       executor = identifyexecutor and identifyexecutor() or "unknown",
       session_key = sessionKey,
+      hb_count = __SA_HB_COUNT or 0,
       rng1 = math.random(1, 100000) + math.random(),
       rng2 = math.random(1, 100000),
-      delivery_mode = "binary" -- Request binary stream delivery
+      delivery_mode = "binary"
     })
     
     local _validateUrl = "${supabaseUrl}/functions/v1/validate-key-v2"
