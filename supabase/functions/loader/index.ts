@@ -719,6 +719,22 @@ ${generateFunctionHoneypots()}
 
 ${generateTimeWindowGuard()}
 
+${generateExecutorIdentification()}
+
+${generateKickHandler()}
+
+${generateHeartbeatCounter()}
+
+${generateLCGRandom()}
+
+${generateRecursionDepthTest()}
+
+${generateRequestMetatableTrap()}
+
+${generateTostringComparison()}
+
+${generateGetfenvMonitor()}
+
 local ${funcName} = function()
   local Players = game:GetService("Players")
   local TweenService = game:GetService("TweenService")
