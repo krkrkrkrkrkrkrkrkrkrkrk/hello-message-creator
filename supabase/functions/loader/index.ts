@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
-import { generateAntiHookCode, generateSafeLoadstring, generateEscapeSequences, generateAntiEnvLogCheck, generateCompactAntiEnvCheck, generateLuarmorStyleAntiEnvLog, generateTutorialStateHWID, generateFunctionHoneypots, generateTimeWindowGuard } from "../_shared/anti-hook-detection.ts";
+import { generateAntiHookCode, generateSafeLoadstring, generateEscapeSequences, generateAntiEnvLogCheck, generateCompactAntiEnvCheck, generateLuarmorStyleAntiEnvLog, generateTutorialStateHWID, generateFunctionHoneypots, generateTimeWindowGuard, generateExecutorIdentification, generateKickHandler, generateHeartbeatCounter, generateLCGRandom, generateRecursionDepthTest, generateRequestMetatableTrap, generateTostringComparison, generateGetfenvMonitor, generatePRNGStringEncryption, generateCustomEncoding } from "../_shared/anti-hook-detection.ts";
 import { splitIntoEncryptedChunks, signScript, encodeAsEscapeSequences, timingSafeEqual } from "../_shared/chunk-encryption.ts";
 import { checkRateLimit, isBlacklisted, addToBlacklist } from "../_shared/deno-kv-store.ts";
 
