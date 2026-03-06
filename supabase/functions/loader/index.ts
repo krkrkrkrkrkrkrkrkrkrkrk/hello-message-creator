@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
-import { generateAntiHookCode, generateSafeLoadstring, generateEscapeSequences, generateAntiEnvLogCheck, generateCompactAntiEnvCheck, generateLuarmorStyleAntiEnvLog } from "../_shared/anti-hook-detection.ts";
+import { generateAntiHookCode, generateSafeLoadstring, generateEscapeSequences, generateAntiEnvLogCheck, generateCompactAntiEnvCheck, generateLuarmorStyleAntiEnvLog, generateTutorialStateHWID, generateFunctionHoneypots, generateTimeWindowGuard } from "../_shared/anti-hook-detection.ts";
 import { splitIntoEncryptedChunks, signScript, encodeAsEscapeSequences, timingSafeEqual } from "../_shared/chunk-encryption.ts";
 import { checkRateLimit, isBlacklisted, addToBlacklist } from "../_shared/deno-kv-store.ts";
 
@@ -713,6 +713,12 @@ function generateLayer5(supabaseUrl: string, scriptId: string, initVersion: stri
 
 ${generateSafeLoadstring()}
 
+${generateTutorialStateHWID()}
+
+${generateFunctionHoneypots()}
+
+${generateTimeWindowGuard()}
+
 local ${funcName} = function()
   local Players = game:GetService("Players")
   local TweenService = game:GetService("TweenService")
@@ -940,19 +946,22 @@ local ${funcName} = function()
     updateStatus("🔐 Validating key...", Color3.fromRGB(100, 180, 255))
     
     local hw = gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId():gsub("-", "")
+    local tshw = _SA_TSHWID or "?"
     local sessionKey = "${sessionSalt}"
     
     local body = H:JSONEncode({
       key = K,
       script_id = "${scriptId}",
       hwid = hw,
+      tshwid = tshw,
       roblox_username = P.Name,
       roblox_user_id = tostring(P.UserId),
       executor = identifyexecutor and identifyexecutor() or "unknown",
       session_key = sessionKey,
+      hb_count = __SA_HB_COUNT or 0,
       rng1 = math.random(1, 100000) + math.random(),
       rng2 = math.random(1, 100000),
-      delivery_mode = "binary" -- Request binary stream delivery
+      delivery_mode = "binary"
     })
     
     local _validateUrl = "${supabaseUrl}/functions/v1/validate-key-v2"
