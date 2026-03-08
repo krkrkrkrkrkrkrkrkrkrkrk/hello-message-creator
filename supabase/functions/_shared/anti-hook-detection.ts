@@ -650,7 +650,7 @@ do
     if c<=1 then _sus=_sus+2 end
   end)
   
-  if _sus >= 5 then return nil end
+  if _sus >= 8 then return nil end
 end
 `;
 }
