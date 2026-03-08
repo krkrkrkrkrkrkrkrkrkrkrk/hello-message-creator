@@ -734,7 +734,7 @@ do
   _SA_TBL_DATA = {t1,t2,t3}
 end
 
-while _SA_TBL_ACC == -1 do end
+if _SA_TBL_ACC == -1 then __SA_SUSPICION = __SA_SUSPICION + 5 end
 
 -- Stack depth anti-debug (Luarmor v92)
 local ${flagAD} = false
