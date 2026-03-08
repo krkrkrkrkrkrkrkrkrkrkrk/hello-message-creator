@@ -243,10 +243,12 @@ function generateLayer1(supabaseUrl: string, scriptId: string, initVersion: stri
   const antiEnv = generateCompactAntiEnvCheck();
   const headerData = Array.from({length: 4}, () => Math.floor(Math.random() * 4294967295));
 
-  return `${antiEnv}_bd0={${headerData.join(',')},"${blob.escapedKey}",${Math.floor(Math.random()*99999999)},"${blob.escapedSalt}","${blob.signature}"};
+  return `${antiEnv}
+_bd0={${headerData.join(',')},"${blob.escapedKey}",${Math.floor(Math.random()*99999999)},"${blob.escapedSalt}","${blob.signature}"};
 local f,b="${cacheFolder}","${initVersion}";local a;pcall(function()a=readfile(f.."/i-"..b..".lua")end) if a and #a>2000 then a=loadstring(a) else a=nil end;
-if a then return a() else pcall(makefolder,f) a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}") writefile(f.."/i-"..b..".lua",a);
-pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(i[%w%-]*).lua$')if m and m~=('i-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);return loadstring(a)()end`;
+if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
+pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(i[%w%-]*).lua$')if m and m~=('i-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=loadstring(a);if fn then return fn() else warn("[ShadowAuth] Layer 2 loadstring failed: "..tostring(lerr)) end end`;
+}
 }
 
 // =====================================================
