@@ -551,7 +551,7 @@ if not _SA_LOADSTRING then _SA_LOADSTRING = loadstring end
  */
 export function generateCompactAntiEnvCheck(): string {
   const m = generateRandomVarName(14);
-  return `do local _s=0;pcall(function()if getmetatable(require)then _s=_s+1 end;if getmetatable(print)then _s=_s+1 end end);pcall(function()local _io=pcall(function()Instance.new("Part"):${m}("a")end)if _io then _s=_s+3 end end);pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")then _s=_s+3 end end);if _s>=3 then return nil end end;`;
+  return `do local _s=0;pcall(function()if getmetatable(require)then _s=_s+1 end;if getmetatable(print)then _s=_s+1 end end);pcall(function()local _io=pcall(function()Instance.new("Part"):${m}("a")end)if _io then _s=_s+3 end end);pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")then _s=_s+3 end end);if _s>=6 then return nil end end;`;
 }
 
 /**
@@ -650,7 +650,7 @@ do
     if c<=1 then _sus=_sus+2 end
   end)
   
-  if _sus >= 5 then return nil end
+  if _sus >= 8 then return nil end
 end
 `;
 }
@@ -734,7 +734,7 @@ do
   _SA_TBL_DATA = {t1,t2,t3}
 end
 
-while _SA_TBL_ACC == -1 do end
+if _SA_TBL_ACC == -1 then __SA_SUSPICION = __SA_SUSPICION + 5 end
 
 -- Stack depth anti-debug (Luarmor v92)
 local ${flagAD} = false
@@ -867,7 +867,7 @@ pcall(function()
 end)
 
 -- Block if suspicion is high
-if __SA_SUSPICION >= 5 then return nil end
+if __SA_SUSPICION >= 10 then return nil end
 
 -- Function integrity check
 local ${hcVar} = function()
