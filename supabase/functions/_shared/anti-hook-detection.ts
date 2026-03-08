@@ -548,10 +548,10 @@ if not _SA_LOADSTRING then _SA_LOADSTRING = loadstring end
 
 /**
  * Compact anti-env check for Layer 1 (minimal, fast)
+ * NOTE: Layer 1 must NEVER block/kick - only set a suspicion flag for later layers
  */
 export function generateCompactAntiEnvCheck(): string {
-  const m = generateRandomVarName(14);
-  return `do local _s=0;pcall(function()if getmetatable(require)then _s=_s+1 end;if getmetatable(print)then _s=_s+1 end end);pcall(function()local _io=pcall(function()Instance.new("Part"):${m}("a")end)if _io then _s=_s+3 end end);pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")then _s=_s+3 end end);if _s>=6 then return nil end end;`;
+  return `__SA_S=0;pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")then __SA_S=__SA_S+5 end end);`;
 }
 
 /**
