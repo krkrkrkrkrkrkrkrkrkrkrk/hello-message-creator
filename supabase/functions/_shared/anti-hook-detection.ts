@@ -867,7 +867,7 @@ pcall(function()
 end)
 
 -- Block if suspicion is high
-if __SA_SUSPICION >= 5 then return nil end
+if __SA_SUSPICION >= 10 then return nil end
 
 -- Function integrity check
 local ${hcVar} = function()
