@@ -725,7 +725,7 @@ serve(async (req) => {
 
     const initVersion = (vParam?.trim()) || await generateScriptHash(script.content);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const sessionSalt = generateSalt(scriptId, clientIP);
+    const sessionSalt = generateSalt(scriptId, clientIP, Date.now());
 
     console.log(`Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0,8)}..., IP: ${clientIP}`);
 
