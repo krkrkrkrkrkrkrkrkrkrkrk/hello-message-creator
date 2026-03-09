@@ -187,7 +187,7 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body).substring(0, 200));
     
-    const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, delivery_mode } = body;
+    const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, timezone_offset, delivery_mode } = body;
     scriptId = script_id;
     
     // Check delivery mode preference
