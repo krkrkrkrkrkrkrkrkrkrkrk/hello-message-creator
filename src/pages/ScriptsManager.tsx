@@ -147,15 +147,16 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
     setCreating(true);
 
     try {
-      // Deduct 10 tokens for script upload (guarded with timeout to avoid UI stuck at 90%)
-      const { data: tokenResult, error: tokenError } = await withTimeout(
+      const tokenRes = await withTimeout<any>(
         supabase.rpc("deduct_tokens", {
           p_user_id: user.id,
           p_amount: 10,
-        }),
+        }) as any,
         15000,
         "Token validation"
       );
+      const tokenResult = tokenRes.data;
+      const tokenError = tokenRes.error;
 
       if (tokenError) {
         console.error("Token deduction error:", tokenError);
