@@ -283,7 +283,8 @@ export function extractWatermark(code: string): { keyFingerprint: number; timest
 }
 
 // =====================================================
-// LURAPH INTEGRATION (with fail-alert)
+// LURAPH INTEGRATION V2 (full API spec compliance)
+// API docs: https://api.lura.ph/v1
 // =====================================================
 
 const LURAPH_API_URL = "https://api.lura.ph/v1";
@@ -296,68 +297,126 @@ export async function obfuscateWithLuraph(
   const key = Deno.env.get("LURAPH_API_KEY");
   if (!key) {
     if (alertOnFailure) {
-      console.error(`[LURAPH CRITICAL] No API key configured for ${layerName} - DELIVERING UNOBFUSCATED CODE`);
+      console.error(`[LURAPH CRITICAL] No API key configured for ${layerName}`);
       await logLuraphFailure(layerName, "NO_API_KEY");
     }
     return { code, obfuscated: false };
   }
 
   try {
-    console.log(`[Luraph] Obfuscating ${layerName}...`);
+    console.log(`[Luraph] Obfuscating ${layerName} (${code.length} bytes)...`);
     
-    const headers = new Headers();
-    headers.set("Luraph-API-Key", key);
-    headers.set("Content-Type", "application/json");
+    const headers: HeadersInit = {
+      "Luraph-API-Key": key,
+      "Content-Type": "application/json",
+    };
 
-    // Get nodes
+    // Step 1: Get available nodes
     const nodesResp = await fetch(`${LURAPH_API_URL}/obfuscate/nodes`, { headers });
-    if (!nodesResp.ok) throw new Error(`Nodes error: ${nodesResp.status}`);
-    const nodes = await nodesResp.json();
-    const nodeId = nodes.recommendedId;
-    if (!nodeId) throw new Error("No Luraph nodes available");
+    if (!nodesResp.ok) {
+      const err = await nodesResp.text();
+      throw new Error(`Nodes fetch failed [${nodesResp.status}]: ${err}`);
+    }
+    const nodesData = await nodesResp.json();
+    const nodeId = nodesData.recommendedId;
+    if (!nodeId || !nodesData.nodes[nodeId]) throw new Error("No Luraph nodes available");
+    
+    const node = nodesData.nodes[nodeId];
+    console.log(`[Luraph] Using node ${nodeId} (v${node.version}, CPU: ${node.cpuUsage}%)`);
 
-    // Submit
+    // Step 2: Build options dynamically from node's available options
+    const options: Record<string, boolean | string> = {};
+    for (const [optId, optConfig] of Object.entries(node.options as Record<string, any>)) {
+      if (optConfig.tier === "PREMIUM_ONLY") {
+        // Set default for premium options we may not have access to
+        if (optConfig.type === "CHECKBOX") options[optId] = false;
+        else if (optConfig.type === "DROPDOWN" && optConfig.choices?.length > 0) options[optId] = optConfig.choices[0];
+        else if (optConfig.type === "TEXT") options[optId] = "";
+      } else {
+        // Enable all CUSTOMER_ONLY options we have access to
+        if (optConfig.type === "CHECKBOX") {
+          // Check dependencies
+          let depsOk = true;
+          if (optConfig.dependencies) {
+            for (const [depId, depValues] of Object.entries(optConfig.dependencies as Record<string, any[]>)) {
+              if (!depValues.includes(options[depId])) { depsOk = false; break; }
+            }
+          }
+          options[optId] = depsOk;
+        } else if (optConfig.type === "DROPDOWN" && optConfig.choices?.length > 0) {
+          options[optId] = optConfig.choices[0];
+        } else if (optConfig.type === "TEXT") {
+          options[optId] = "";
+        }
+      }
+    }
+
+    // Step 3: Base64 encode the script
     const encoder = new TextEncoder();
     const bytes = encoder.encode(code);
     let binary = "";
     for (const byte of bytes) binary += String.fromCharCode(byte);
-    const b64 = btoa(binary);
+    const b64Script = btoa(binary);
 
+    // Step 4: Submit obfuscation job
     const submitResp = await fetch(`${LURAPH_API_URL}/obfuscate/new`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         fileName: `${layerName}.lua`,
         node: nodeId,
-        script: b64,
-        options: {
-          TARGET_VERSION: "Luau",
-          DISABLE_LINE_INFORMATION: true,
-          CONSTANT_ENCRYPTION: true,
-          CONTROL_FLOW: true,
-          VM_ENCRYPTION: true,
-          STRING_ENCRYPTION: true,
-        },
+        script: b64Script,
+        options,
         enforceSettings: false,
+        useTokens: false,
       }),
     });
-    if (!submitResp.ok) throw new Error(`Submit error: ${await submitResp.text()}`);
-    const { jobId } = await submitResp.json();
-
-    // Poll for completion
-    const start = Date.now();
-    while (Date.now() - start < 90000) {
-      const status = await fetch(`${LURAPH_API_URL}/obfuscate/status/${jobId}`, { headers });
-      if (status.ok) break;
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    // Download
-    const dlResp = await fetch(`${LURAPH_API_URL}/obfuscate/download/${jobId}`, { headers });
-    if (!dlResp.ok) throw new Error(`Download error: ${dlResp.status}`);
-    const result = await dlResp.text();
     
-    console.log(`[Luraph] ${layerName} OK (${result.length} bytes)`);
+    if (!submitResp.ok) {
+      const errData = await submitResp.json().catch(() => ({ errors: [{ message: "Unknown" }] }));
+      const errMsgs = errData.errors?.map((e: any) => `${e.param ? e.param + ": " : ""}${e.message}`).join("; ");
+      throw new Error(`Submit failed [${submitResp.status}]: ${errMsgs}`);
+    }
+    
+    const { jobId } = await submitResp.json();
+    console.log(`[Luraph] Job ${jobId} submitted for ${layerName}`);
+
+    // Step 5: Wait for completion (blocking endpoint, 60s timeout, retry up to 3 times)
+    let completed = false;
+    for (let attempt = 0; attempt < 3 && !completed; attempt++) {
+      const statusResp = await fetch(`${LURAPH_API_URL}/obfuscate/status/${jobId}`, { headers });
+      
+      if (!statusResp.ok) {
+        if (statusResp.status === 404) throw new Error("Job not found");
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      
+      const statusText = await statusResp.text();
+      if (statusText && statusText.trim()) {
+        try {
+          const statusData = JSON.parse(statusText);
+          if (statusData.error) {
+            throw new Error(`Luraph compilation error: ${statusData.error}`);
+          }
+        } catch (e) {
+          if ((e as Error).message.includes("Luraph compilation")) throw e;
+        }
+      }
+      completed = true;
+    }
+    
+    if (!completed) throw new Error("Job status timeout after 3 attempts");
+
+    // Step 6: Download result
+    const dlResp = await fetch(`${LURAPH_API_URL}/obfuscate/download/${jobId}`, { headers });
+    if (!dlResp.ok) {
+      if (dlResp.status === 410) throw new Error("Job result expired (24h limit)");
+      throw new Error(`Download failed [${dlResp.status}]`);
+    }
+    
+    const result = await dlResp.text();
+    console.log(`[Luraph] ${layerName} OK: ${code.length} → ${result.length} bytes (${((result.length/code.length)*100).toFixed(0)}%)`);
     return { code: result, obfuscated: true };
 
   } catch (err) {
