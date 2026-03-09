@@ -717,7 +717,7 @@ local ${funcName} = function()
           local authTime = os.clock() - _SA_CLOCK
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
           print("[ShadowAuth] Authenticated in " .. string.format("%.3f", authTime) .. "s")
-          task.wait(0.5)
+          task.wait(0.2)
           closeGui(true)
           _G.__SA = true
 
