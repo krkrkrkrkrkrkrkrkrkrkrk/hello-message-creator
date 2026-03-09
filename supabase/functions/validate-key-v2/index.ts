@@ -440,7 +440,7 @@ function fastHash32Bytes(input: string): string {
     let binaryPayload: string | null = null;
     let binaryChecksum: number | null = null;
     let payloadHash = "";
-    const scriptHash = fastHash32(obfuscatedScript);
+    const scriptHash = fastHash32Bytes(obfuscatedScript);
     
     if (useBinaryDelivery) {
       // Binary stream mode (Luarmor-identical)
