@@ -372,11 +372,19 @@ local ${funcName} = function()
     if statusLabel then statusLabel.Text=text; if color then statusLabel.TextColor3=color end end
   end
 
+  local function _SA_IMUL(a, b)
+    local ah = bit32.rshift(a, 16)
+    local al = bit32.band(a, 0xFFFF)
+    local bl = bit32.band(b, 0xFFFF)
+    local bh = bit32.rshift(b, 16)
+    return bit32.band(al*bl + bit32.lshift(bit32.band(ah*bl + al*bh, 0xFFFF), 16), 0xFFFFFFFF)
+  end
+
   local function _SA_FASTHASH(s)
     local h = 2166136261
     for i = 1, #s do
       h = bit32.bxor(h, string.byte(s, i))
-      h = bit32.band((h * 16777619), 0xFFFFFFFF)
+      h = _SA_IMUL(h, 16777619)
     end
     return string.format("%08x", h)
   end
