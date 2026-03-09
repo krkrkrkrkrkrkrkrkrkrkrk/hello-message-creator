@@ -789,7 +789,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const sessionSalt = generateSalt(scriptId, clientIP);
 
-    console.log(`Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0,8)}..., IP: ${clientIP}`);
+    const compat = (() => {
+      const c = (url.searchParams.get("compat") || "").trim().toLowerCase();
+      return c === "1" || c === "true";
+    })();
+    const compatQuery = compat ? "&compat=1" : "";
+
+    console.log(
+      `Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0, 8)}..., IP: ${clientIP}${compat ? " (compat)" : ""}`,
+    );
 
     // Build cache helpers
     const fetchBuild = async () => {
@@ -804,63 +812,90 @@ serve(async (req) => {
 
     const upsertBuild = async (layer: number, code: string) => {
       const patch: Record<string, unknown> = {
-        script_id: scriptId, version: initVersion,
+        script_id: scriptId,
+        version: initVersion,
         updated_at: new Date().toISOString(),
       };
       patch[`layer${layer}`] = code;
       await supabase.from("script_builds").upsert(patch, { onConflict: "script_id,version" });
     };
 
-    const cacheKey = (l: number) => `l${l}_${scriptId.substring(0,8)}_${initVersion}`;
+    const cacheKey = (l: number, isCompat: boolean) =>
+      `l${l}_${scriptId.substring(0, 8)}_${initVersion}_${isCompat ? "compat" : "default"}`;
 
-    const serveLayer = async (num: number, generator: () => string) => {
+    const serveLayer = async (num: number, generator: () => string, opts: { compat: boolean }) => {
       const key = `layer${num}`;
-      
-      // Try persistent build cache
-      const build = await fetchBuild();
-      if (build?.[key] && build[key].length > 100) {
-        return new Response(build[key], {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "hit",
-            "Cache-Control": "public, max-age=31536000, immutable" }
-        });
+
+      // IMPORTANT: compat responses must NOT touch persistent build cache (avoid poisoning cached builds)
+      if (!opts.compat) {
+        const build = await fetchBuild();
+        if (build?.[key] && build[key].length > 100) {
+          return new Response(build[key], {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/plain",
+              "X-Layer": String(num),
+              "X-Build": "hit",
+              "X-Compat": "0",
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          });
+        }
       }
 
       // Try memory cache
-      const ck = cacheKey(num);
+      const ck = cacheKey(num, opts.compat);
       const cached = loaderCache.get(ck);
-      if (cached && (Date.now() - cached.timestamp) < 300000) {
+      if (cached && Date.now() - cached.timestamp < 300000) {
         return new Response(cached.code, {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "mem" }
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/plain",
+            "X-Layer": String(num),
+            "X-Build": "mem",
+            "X-Compat": opts.compat ? "1" : "0",
+            "Cache-Control": opts.compat ? "no-store" : undefined,
+          } as Record<string, string>,
         });
       }
 
-      // Generate + Luraph + cache
+      // Generate (+ optional Luraph)
       const raw = generator();
-      const protected_ = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
-      loaderCache.set(ck, { code: protected_, timestamp: Date.now() });
-      await upsertBuild(num, protected_);
+      const finalCode = opts.compat ? raw : await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0, 8)}`);
 
-      return new Response(protected_, {
-        headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "miss",
-          "Cache-Control": "public, max-age=31536000, immutable" }
+      loaderCache.set(ck, { code: finalCode, timestamp: Date.now() });
+
+      if (!opts.compat) {
+        await upsertBuild(num, finalCode);
+      }
+
+      return new Response(finalCode, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/plain",
+          "X-Layer": String(num),
+          "X-Build": "miss",
+          "X-Compat": opts.compat ? "1" : "0",
+          "Cache-Control": opts.compat ? "no-store" : "public, max-age=31536000, immutable",
+        },
       });
     };
 
     // LAYER ROUTING
     if (layerParam === "2" || layerParam === "init") {
-      return await serveLayer(2, () => generateLayer2(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(2, () => generateLayer2(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "3") {
-      return await serveLayer(3, () => generateLayer3(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(3, () => generateLayer3(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "4" || layerParam === "core") {
-      return await serveLayer(4, () => generateLayer4(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(4, () => generateLayer4(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "5") {
-      return await serveLayer(5, () => generateLayer5(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(5, () => generateLayer5(supabaseUrl!, scriptId, initVersion), { compat });
     }
 
     // Prebuild
@@ -889,9 +924,9 @@ serve(async (req) => {
     }
 
     // DEFAULT: LAYER 1
-    const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion);
+    const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion, compatQuery);
     return new Response(layer1Code, {
-      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1" }
+      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1", "X-Compat": compat ? "1" : "0" },
     });
 
   } catch (error) {
