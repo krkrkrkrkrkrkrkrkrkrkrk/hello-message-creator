@@ -744,12 +744,13 @@ serve(async (req) => {
         });
       }
 
-      // Check DB cache
+      // Check DB cache (version-aware: include loader version to bust stale builds)
+      const dbVersion = `${initVersion}_lv${LOADER_VERSION}`;
       const { data: build } = await supabase
         .from("script_builds")
         .select("layer5")
         .eq("script_id", scriptId)
-        .eq("version", initVersion)
+        .eq("version", dbVersion)
         .maybeSingle();
 
       if (build?.layer5 && build.layer5.length > 100) {
