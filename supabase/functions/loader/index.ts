@@ -237,7 +237,7 @@ ${generateLuarmorStyleAntiEnvLog()}
 -- ======= ANTI-HOOK SCANNER =======
 ${antiHookCode}
 
--- ======= SECURITY MODULES =======
+-- ======= SECURITY MODULES (parallel init) =======
 ${generateTutorialStateHWID()}
 ${generateExecutorIdentification()}
 ${generateHeartbeatCounter()}
@@ -254,6 +254,92 @@ ${generateWebSocketClient()}
 ${generateRecursionDepthTest()}
 ${generateStackDepthAntiDebug()}
 ${generateRequestMetatableTrap()}
+
+-- ======= ADVANCED ANTI-DEBUG V20 =======
+-- debug.info fingerprinting (detects debugger injection)
+local _SA_DBG_SCORE = 0
+pcall(function()
+  if debug and debug.info then
+    local ok, info = pcall(debug.info, 1, "sln")
+    if ok and type(info) == "string" and (info:find("hook") or info:find("spy") or info:find("inject")) then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 5
+    end
+  end
+end)
+
+-- hookmetamethod detection
+pcall(function()
+  if hookmetamethod then
+    local t = setmetatable({}, {__index = function() return 42 end})
+    local orig = t[1]
+    if orig ~= 42 then _SA_DBG_SCORE = _SA_DBG_SCORE + 3 end
+  end
+end)
+
+-- getrawmetatable trap
+pcall(function()
+  if getrawmetatable then
+    local sentinel = newproxy(true)
+    local mt = getmetatable(sentinel)
+    mt.__tostring = function() return "sa_sentinel" end
+    mt.__metatable = "locked"
+    local raw = getrawmetatable(sentinel)
+    if raw and raw.__tostring then
+      local r = raw.__tostring()
+      if r ~= "sa_sentinel" then _SA_DBG_SCORE = _SA_DBG_SCORE + 4 end
+    end
+  end
+end)
+
+-- clonefunction integrity
+pcall(function()
+  if clonefunction then
+    local orig = print
+    local cloned = clonefunction(orig)
+    if type(cloned) ~= "function" then _SA_DBG_SCORE = _SA_DBG_SCORE + 3 end
+    if rawequal and rawequal(orig, cloned) then _SA_DBG_SCORE = _SA_DBG_SCORE + 2 end
+  end
+end)
+
+-- checkcaller detection (executor-specific)
+pcall(function()
+  if checkcaller then
+    local isCaller = checkcaller()
+    if not isCaller then _SA_DBG_SCORE = _SA_DBG_SCORE + 1 end
+  end
+end)
+
+-- RemoteSpy / InfYield / Unnamed detection in CoreGui
+pcall(function()
+  local cg = game:GetService("CoreGui")
+  for _, child in ipairs(cg:GetChildren()) do
+    local n = child.Name:lower()
+    if n:find("remotespy") or n:find("infyield") or n:find("unnamed") or n:find("serverspy") or n:find("scriptdumper") then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 5
+    end
+  end
+end)
+
+-- _G pollution check (common logger pattern)
+pcall(function()
+  local suspicious_keys = {"__namecall_hook", "__index_hook", "RemoteSpy", "SimpleSpy", "HttpSpy", "ScriptDumper"}
+  for _, k in ipairs(suspicious_keys) do
+    if _G[k] ~= nil or (getgenv and getgenv()[k] ~= nil) then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 3
+      break
+    end
+  end
+end)
+
+if _SA_DBG_SCORE >= 6 then
+  pcall(function()
+    spawn(function()
+      pcall(function()
+        game:HttpGet("${reportUrl}?type=debug_detected&tools=score_" .. tostring(_SA_DBG_SCORE))
+      end)
+    end)
+  end)
+end
 
 -- ======= MAIN =======
 local ${funcName} = function()
