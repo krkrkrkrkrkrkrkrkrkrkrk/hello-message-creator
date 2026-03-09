@@ -135,25 +135,28 @@ class LuraphClient {
   async waitForJob(jobId: string, timeout: number = 120000): Promise<void> {
     const startTime = Date.now();
     
-    while (Date.now() - startTime < timeout) {
+    // The status endpoint blocks for up to 60s, retry up to 3 times
+    for (let attempt = 0; attempt < 3 && (Date.now() - startTime) < timeout; attempt++) {
       const response = await this.request(`/obfuscate/status/${jobId}`);
       
       if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Job not found');
-        }
-        // Timeout on status endpoint, retry
+        if (response.status === 404) throw new Error('Job not found');
+        if (response.status === 403) throw new Error('Job does not belong to you');
         await new Promise(r => setTimeout(r, 2000));
         continue;
       }
 
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(`Luraph compilation error: ${data.error}`);
+      const text = await response.text();
+      if (text && text.trim()) {
+        try {
+          const data = JSON.parse(text);
+          if (data.error) throw new Error(`Luraph compilation error: ${data.error}`);
+        } catch (e) {
+          if ((e as Error).message.includes('Luraph compilation')) throw e;
+        }
       }
       
-      // Empty response means job is complete
+      // Empty response = job complete
       return;
     }
 
@@ -164,11 +167,10 @@ class LuraphClient {
     const response = await this.request(`/obfuscate/download/${jobId}`);
     
     if (!response.ok) {
-      if (response.status === 410) {
-        throw new Error('Obfuscation result expired');
-      }
-      const error = await response.json();
-      throw new Error(`Luraph download error: ${JSON.stringify(error)}`);
+      if (response.status === 410) throw new Error('Obfuscation result expired (24h limit)');
+      if (response.status === 403) throw new Error('Job does not belong to you');
+      if (response.status === 404) throw new Error('Job not found');
+      throw new Error(`Download error: ${response.status}`);
     }
 
     return response.text();
@@ -177,20 +179,48 @@ class LuraphClient {
   async obfuscate(
     script: string,
     fileName: string = 'script.lua',
-    options: LuraphOptions = {}
+    userOptions: LuraphOptions = {}
   ): Promise<string> {
     // Get available nodes
     const nodes = await this.getNodes();
     const nodeId = nodes.recommendedId;
 
-    if (!nodeId) {
+    if (!nodeId || !nodes.nodes[nodeId]) {
       throw new Error('No Luraph nodes available');
     }
 
-    console.log(`Using Luraph node: ${nodeId} (v${nodes.nodes[nodeId].version})`);
+    const node = nodes.nodes[nodeId];
+    console.log(`Using Luraph node: ${nodeId} (v${node.version}, CPU: ${node.cpuUsage}%)`);
+
+    // Build options dynamically from node's available options
+    const options: Record<string, boolean | string> = {};
+    for (const [optId, optConfig] of Object.entries(node.options)) {
+      if (optConfig.tier === "PREMIUM_ONLY") {
+        if (optConfig.type === "CHECKBOX") options[optId] = false;
+        else if (optConfig.type === "DROPDOWN" && optConfig.choices?.length > 0) options[optId] = optConfig.choices[0];
+        else if (optConfig.type === "TEXT") options[optId] = "";
+      } else {
+        if (optConfig.type === "CHECKBOX") {
+          // Check dependencies
+          let depsOk = true;
+          if (optConfig.dependencies) {
+            for (const [depId, depValues] of Object.entries(optConfig.dependencies as Record<string, unknown[]>)) {
+              if (!depValues.includes(options[depId])) { depsOk = false; break; }
+            }
+          }
+          // Use user option if provided, otherwise enable
+          const userVal = userOptions[optId];
+          options[optId] = depsOk && (userVal !== undefined ? Boolean(userVal) : true);
+        } else if (optConfig.type === "DROPDOWN" && optConfig.choices?.length > 0) {
+          options[optId] = optConfig.choices[0];
+        } else if (optConfig.type === "TEXT") {
+          options[optId] = "";
+        }
+      }
+    }
 
     // Submit job
-    const jobId = await this.submitJob(script, fileName, nodeId, options);
+    const jobId = await this.submitJob(script, fileName, nodeId, options as unknown as LuraphOptions);
     console.log(`Luraph job submitted: ${jobId}`);
 
     // Wait for completion
