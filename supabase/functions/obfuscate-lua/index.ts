@@ -629,21 +629,14 @@ serve(async (req) => {
     let engine = 'local';
 
     if (useLuraph && luraphApiKey) {
-      console.log('Using Luraph API for obfuscation...');
+      console.log('Using Luraph API for VM obfuscation...');
       
       try {
         const client = new LuraphClient(luraphApiKey);
 
-        // Build Luraph options based on user settings
-        const luraphOptions: LuraphOptions = {
-          TARGET_VERSION: options?.targetVersion || 'Roblox',
-          DISABLE_LINE_INFORMATION: options?.disableLineInfo !== false,
-          ENABLE_GC_FIXES: options?.enableGcFixes === true,
-        };
-
-        // Add optional settings if enabled
-        if (options?.constantEncryption !== false) {
-          luraphOptions.CONSTANT_ENCRYPTION = true;
+        // Pass user preferences - the client.obfuscate() method will
+        // dynamically fetch node options and apply them correctly
+        const luraphOptions: LuraphOptions = {};
         }
         if (options?.controlFlow !== false) {
           luraphOptions.CONTROL_FLOW = true;
