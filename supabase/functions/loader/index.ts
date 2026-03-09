@@ -614,7 +614,7 @@ local ${funcName} = function()
         task.wait(1.5); closeGui(false); return
       end
       
-      if data and data.valid and (data.script or data.binary_stream) then
+      if data and data.valid and (data.script or data.binary_stream) and _SA_VERIFY_RESPONSE(data) then
         updateStatus("✅ Key valid!", Color3.fromRGB(100,220,150))
         
         if data.seconds_left then
