@@ -237,23 +237,33 @@ function generateBinaryDataBlob(): { escapedKey: string; escapedSalt: string; si
 // =====================================================
 // LAYER 1: Ultra-Compact Bootstrap (Luarmor-identical ~4 lines)
 // =====================================================
-function generateLayer1(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer1(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   const blob = generateBinaryDataBlob();
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const antiEnv = generateCompactAntiEnvCheck();
-  const headerData = Array.from({length: 4}, () => Math.floor(Math.random() * 4294967295));
+  const headerData = Array.from({ length: 4 }, () => Math.floor(Math.random() * 4294967295));
 
   return `${antiEnv}
-_bd0={${headerData.join(',')},"${blob.escapedKey}",${Math.floor(Math.random()*99999999)},"${blob.escapedSalt}","${blob.signature}"};
+_bd0={${headerData.join(",")},"${blob.escapedKey}",${Math.floor(Math.random() * 99999999)},"${blob.escapedSalt}","${blob.signature}"};
 local f,b="${cacheFolder}","${initVersion}";local a;pcall(function()a=readfile(f.."/i-"..b..".lua")end) if a and #a>2000 then a=loadstring(a) else a=nil end;
-if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
+if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}${compatQuery}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
 pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(i[%w%-]*).lua$')if m and m~=('i-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=loadstring(a);if fn then return fn() else warn("[ShadowAuth] Layer 2 loadstring failed: "..tostring(lerr)) end end`;
 }
 
 // =====================================================
 // LAYER 2: Bootstrapper with anti-env scoring
 // =====================================================
-function generateLayer2(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer2(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const esc = generateEscapeSequences(16);
 
@@ -276,7 +286,7 @@ local function _wc(n,d)
 end
 
 local ok,c3 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=3&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=3&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c3 and #c3>100 then
@@ -292,9 +302,16 @@ return error("[ShadowAuth] Layer 3 unavailable")
 // =====================================================
 // LAYER 3: Anti-Hook Scanner (full Luarmor parity)
 // =====================================================
-function generateLayer3(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g,
-    `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`);
+function generateLayer3(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
+  const antiHookCode = generateAntiHookCode().replace(
+    /__REPORT_URL__/g,
+    `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`,
+  );
 
   return `--[[ ShadowAuth Layer 3 - Anti-Hook V8.0 ]]
 
@@ -303,7 +320,7 @@ ${generateSafeLoadstring()}
 ${antiHookCode}
 
 local ok,c4 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c4 and #c4>100 then
@@ -318,13 +335,18 @@ return error("[ShadowAuth] Layer 4 unavailable")
 // =====================================================
 // LAYER 4: Bridge to Layer 5
 // =====================================================
-function generateLayer4(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer4(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   return `--[[ ShadowAuth Layer 4 ]]
 
 ${generateSafeLoadstring()}
 
 local ok,c5 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=5&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=5&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c5 and #c5>100 then
