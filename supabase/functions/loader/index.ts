@@ -701,10 +701,39 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const layerParam = url.searchParams.get("layer");
-    const vParam = url.searchParams.get("v");
+
+    // Roblox/HttpGet can sometimes encode query chars (like "?") into the path segment.
+    // Example seen in logs: "<uuid>%3Flayer=full" which breaks UUID parsing.
     const pathParts = url.pathname.split("/").filter(Boolean);
-    const scriptId = pathParts[pathParts.length - 1];
+    const rawLast = pathParts[pathParts.length - 1] ?? "";
+    const decodedLast = decodeURIComponent(rawLast);
+
+    let scriptId = decodedLast;
+    let extraQuery = "";
+    const qIndex = decodedLast.indexOf("?");
+    if (qIndex !== -1) {
+      scriptId = decodedLast.slice(0, qIndex);
+      extraQuery = decodedLast.slice(qIndex + 1);
+    }
+
+    const sp = new URLSearchParams(url.searchParams);
+    if (extraQuery) {
+      const extra = new URLSearchParams(extraQuery);
+      for (const [k, v] of extra.entries()) {
+        if (!sp.has(k)) sp.set(k, v);
+      }
+    }
+
+    const layerParam = sp.get("layer");
+    const vParam = sp.get("v");
+
+    // Guard early to avoid noisy DB errors
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(scriptId);
+    if (!isUuid) {
+      return new Response(`error("Invalid script id")`, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain" },
+      });
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
