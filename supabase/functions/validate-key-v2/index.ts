@@ -412,20 +412,8 @@ serve(async (req) => {
     const serverTimestamp = Math.floor(Date.now() / 1000);
     const derivationSalt = generateSalt(keyIdForWatermark, hwid || "unknown", serverTimestamp);
     
-    // Derive encryption key
-    const derivedKeySource = `${derivationSalt}${hwid || "unknown"}${session_key || ""}${serverTimestamp}`;
-    let derivedHash = 0;
-    for (let i = 0; i < derivedKeySource.length; i++) {
-      derivedHash = ((derivedHash * 31) ^ derivedKeySource.charCodeAt(i)) >>> 0;
-      derivedHash = derivedHash % 2147483647;
-    }
-    
-    let derivedKey = "";
-    let seed = derivedHash;
-    for (let i = 0; i < 32; i++) {
-      seed = ((seed * 1103515245 + 12345) ^ seed) >>> 0;
-      derivedKey += String.fromCharCode((seed % 95) + 32);
-    }
+    // Derive encryption key using shared utility (matches Lua client derivation)
+    const derivedKey = deriveEncryptionKey(derivationSalt, hwid || "unknown", session_key || "", serverTimestamp);
     
     // ==================== BINARY STREAM DELIVERY ====================
     let encrypted: string;
