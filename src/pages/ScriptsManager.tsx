@@ -125,11 +125,18 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
       throw new Error("Script name and content are required");
     }
 
-    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    const withTimeout = async <T,>(
+      promiseLike: PromiseLike<T>,
+      ms: number,
+      label: string
+    ): Promise<T> => {
       let t: ReturnType<typeof setTimeout> | null = null;
       const timeout = new Promise<never>((_, reject) => {
         t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
       });
+
+      const promise = Promise.resolve(promiseLike as any);
+
       try {
         return await Promise.race([promise, timeout]);
       } finally {
