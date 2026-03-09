@@ -43,6 +43,16 @@ function transformRNG2(v: number): number {
   return (v ^ 0x5A5A5A) + 42;
 }
 
+function fastHash32Bytes(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let h = 2166136261;
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
 serve(async (req) => {
   const startTime = Date.now();
   let statusCode = 200;
@@ -432,7 +442,7 @@ serve(async (req) => {
     let binaryPayload: string | null = null;
     let binaryChecksum: number | null = null;
     let payloadHash = "";
-    const scriptHash = fastHash32(obfuscatedScript);
+    const scriptHash = fastHash32Bytes(obfuscatedScript);
     
     if (useBinaryDelivery) {
       // Binary stream mode (Luarmor-identical)
