@@ -31,8 +31,10 @@ import {
   isLikelyExecutorRequest,
   generateRandomVarName,
   generateScriptHash,
+  generateSalt,
   obfuscateWithLuraph,
   generateLuaDecryptor,
+  getClientIP,
 } from "../_shared/shared-utils.ts";
 import { generateLuaNodeSelector } from "../_shared/cdn-nodes.ts";
 
