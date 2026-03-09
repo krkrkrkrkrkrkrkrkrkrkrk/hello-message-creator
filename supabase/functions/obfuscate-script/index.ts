@@ -79,27 +79,28 @@ serve(async (req) => {
       );
     }
 
-    // Build options based on available node options
+    // Build options dynamically from available node options
     const nodeOptions = nodesData.nodes[nodeId].options;
     const obfuscationOptions: Record<string, boolean | string> = {};
 
     for (const [optionId, optionConfig] of Object.entries(nodeOptions)) {
       const config = optionConfig as any;
       
-      // Set default values based on type and tier
-      if (config.tier === "PREMIUM_ONLY" || config.tier === "CUSTOMER_ONLY") {
-        // Use default/false for premium options we might not have access to
-        if (config.type === "CHECKBOX") {
-          obfuscationOptions[optionId] = false;
-        } else if (config.type === "DROPDOWN" && config.choices?.length > 0) {
-          obfuscationOptions[optionId] = config.choices[0];
-        } else if (config.type === "TEXT") {
-          obfuscationOptions[optionId] = "";
-        }
+      if (config.tier === "PREMIUM_ONLY") {
+        // Default for premium-only options
+        if (config.type === "CHECKBOX") obfuscationOptions[optionId] = false;
+        else if (config.type === "DROPDOWN" && config.choices?.length > 0) obfuscationOptions[optionId] = config.choices[0];
+        else if (config.type === "TEXT") obfuscationOptions[optionId] = "";
       } else {
-        // For free options, use our settings or defaults
+        // Enable CUSTOMER_ONLY options, respecting dependencies
         if (config.type === "CHECKBOX") {
-          obfuscationOptions[optionId] = settings?.stringEncryption ?? true;
+          let depsOk = true;
+          if (config.dependencies) {
+            for (const [depId, depValues] of Object.entries(config.dependencies as Record<string, any[]>)) {
+              if (!depValues.includes(obfuscationOptions[depId])) { depsOk = false; break; }
+            }
+          }
+          obfuscationOptions[optionId] = depsOk;
         } else if (config.type === "DROPDOWN" && config.choices?.length > 0) {
           obfuscationOptions[optionId] = config.choices[0];
         } else if (config.type === "TEXT") {
