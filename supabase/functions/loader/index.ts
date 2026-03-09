@@ -25,6 +25,16 @@ import {
 } from "../_shared/anti-hook-detection.ts";
 import { splitIntoEncryptedChunks, signScript, encodeAsEscapeSequences, timingSafeEqual } from "../_shared/chunk-encryption.ts";
 import { checkRateLimit, isBlacklisted, addToBlacklist } from "../_shared/deno-kv-store.ts";
+import {
+  corsHeaders,
+  isExecutor,
+  isLikelyExecutorRequest,
+  generateRandomVarName,
+  generateScriptHash,
+  obfuscateWithLuraph,
+  generateLuaDecryptor,
+} from "../_shared/shared-utils.ts";
+import { generateLuaNodeSelector } from "../_shared/cdn-nodes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

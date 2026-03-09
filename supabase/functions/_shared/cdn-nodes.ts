@@ -1,267 +1,157 @@
 /**
- * CDN Multi-Node Architecture (Luarmor-identical)
+ * SHADOWAUTH CDN NODE SELECTION (Luarmor-identical)
+ * ==================================================
+ * Real timezone-based node selection extracted from Luarmor source:
  * 
- * Provides geographic load balancing and failover support
- * Nodes are virtual endpoints that route through Supabase Edge (Deno Deploy CDN)
+ * From deobfuscated source (lines 152-188):
+ * - Uses os.time(os.date("*t")) - os.time(os.date("!*t")) for timezone offset
+ * - Selects nodes based on UTC hour ranges:
+ *   - 21:00-05:00 UTC → EU nodes (eu1, eu2)
+ *   - 05:00-15:00 UTC → Asia/AU nodes (as1, as2, as3, au1, au2)
+ *   - 15:00-21:00 UTC → US nodes (us1, us2)
+ * - Override: Australia region → force AU nodes
+ * - Each region has multiple nodes for random load balancing
+ * 
+ * In ShadowAuth, nodes map to Supabase Edge regions via path-based routing.
+ * Since Supabase Edge Functions deploy globally via Deno Deploy, we use
+ * the CF-IPCountry header to determine the real edge region.
  */
 
 export interface CDNNode {
   id: string;
-  name: string;
   region: string;
-  url: string;
-  priority: number;
-  healthScore: number;
-  lastCheck: number;
+  weight: number; // Higher = more likely selected
 }
 
-// Node health tracking (in-memory cache)
-const nodeHealth = new Map<string, { score: number; lastCheck: number; latency: number }>();
+// Real node pools keyed by region group
+const NODE_POOLS: Record<string, CDNNode[]> = {
+  eu: [
+    { id: "eu1", region: "eu-central-1", weight: 1 },
+    { id: "eu2", region: "eu-west-2", weight: 1 },
+  ],
+  asia: [
+    { id: "as1", region: "ap-southeast-1", weight: 1 },
+    { id: "as2", region: "ap-northeast-1", weight: 1 },
+    { id: "as3", region: "ap-southeast-2", weight: 1 },
+  ],
+  au: [
+    { id: "au1", region: "ap-southeast-2", weight: 2 },
+    { id: "au2", region: "ap-southeast-2", weight: 1 },
+  ],
+  us: [
+    { id: "us1", region: "us-east-1", weight: 1 },
+    { id: "us2", region: "us-west-2", weight: 1 },
+  ],
+  sa: [
+    { id: "sa1", region: "sa-east-1", weight: 1 },
+  ],
+};
+
+// Country → region group mapping (from CF-IPCountry header)
+const COUNTRY_TO_REGION: Record<string, string> = {
+  // Australia override (Luarmor line 183)
+  AU: "au", NZ: "au",
+  // Asia
+  JP: "asia", KR: "asia", CN: "asia", TW: "asia", HK: "asia",
+  SG: "asia", MY: "asia", TH: "asia", PH: "asia", VN: "asia",
+  ID: "asia", IN: "asia", PK: "asia", BD: "asia",
+  // Europe
+  GB: "eu", DE: "eu", FR: "eu", NL: "eu", IT: "eu", ES: "eu",
+  PT: "eu", PL: "eu", SE: "eu", NO: "eu", DK: "eu", FI: "eu",
+  BE: "eu", AT: "eu", CH: "eu", IE: "eu", CZ: "eu", RO: "eu",
+  HU: "eu", BG: "eu", HR: "eu", SK: "eu", SI: "eu", LT: "eu",
+  LV: "eu", EE: "eu", RU: "eu", UA: "eu", TR: "eu",
+  // South America
+  BR: "sa", AR: "sa", CL: "sa", CO: "sa", PE: "sa", VE: "sa",
+  EC: "sa", UY: "sa", PY: "sa", BO: "sa",
+  // North America defaults to US
+  US: "us", CA: "us", MX: "us",
+};
 
 /**
- * Get available CDN nodes based on Supabase URL
- * Simulates multi-region by using path-based routing
+ * Select optimal node using Luarmor's timezone-based algorithm
+ * with real CF-IPCountry override (lines 152-188)
  */
-export function getCDNNodes(supabaseUrl: string): CDNNode[] {
-  const baseUrl = `${supabaseUrl}/functions/v1`;
+export function selectNode(req: Request): { nodeId: string; region: string } {
+  const country = req.headers.get("cf-ipcountry") || "";
   
-  // Virtual nodes - all route to same edge functions but provide
-  // load balancing appearance and failover capability
-  const nodes: CDNNode[] = [
-    {
-      id: "us1",
-      name: "US East (Primary)",
-      region: "us-east-1",
-      url: `${baseUrl}/`,
-      priority: 1,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "us2",
-      name: "US West",
-      region: "us-west-2",
-      url: `${baseUrl}/`,
-      priority: 2,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "eu1",
-      name: "Europe (Frankfurt)",
-      region: "eu-central-1",
-      url: `${baseUrl}/`,
-      priority: 2,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "eu2",
-      name: "Europe (London)",
-      region: "eu-west-2",
-      url: `${baseUrl}/`,
-      priority: 3,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "as1",
-      name: "Asia (Singapore)",
-      region: "ap-southeast-1",
-      url: `${baseUrl}/`,
-      priority: 2,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "as2",
-      name: "Asia (Tokyo)",
-      region: "ap-northeast-1",
-      url: `${baseUrl}/`,
-      priority: 3,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "au1",
-      name: "Australia (Sydney)",
-      region: "ap-southeast-2",
-      url: `${baseUrl}/`,
-      priority: 3,
-      healthScore: 100,
-      lastCheck: Date.now()
-    },
-    {
-      id: "sa1",
-      name: "South America (São Paulo)",
-      region: "sa-east-1",
-      url: `${baseUrl}/`,
-      priority: 3,
-      healthScore: 100,
-      lastCheck: Date.now()
-    }
-  ];
-
-  // Apply cached health scores
-  return nodes.map(node => {
-    const health = nodeHealth.get(node.id);
-    if (health) {
-      return {
-        ...node,
-        healthScore: health.score,
-        lastCheck: health.lastCheck
-      };
-    }
-    return node;
-  });
-}
-
-/**
- * Select best node based on region hint and health
- */
-export function selectOptimalNode(
-  nodes: CDNNode[],
-  clientRegion?: string,
-  excludeNodes?: string[]
-): CDNNode {
-  // Filter out excluded/unhealthy nodes
-  let available = nodes.filter(n => 
-    n.healthScore > 50 && 
-    !excludeNodes?.includes(n.id)
-  );
-
-  if (available.length === 0) {
-    // Fallback to any node
-    available = nodes;
+  // Country override (Luarmor line 183: Australia check)
+  const countryRegion = COUNTRY_TO_REGION[country.toUpperCase()];
+  if (countryRegion) {
+    const pool = NODE_POOLS[countryRegion];
+    const node = weightedRandom(pool);
+    return { nodeId: node.id, region: node.region };
   }
-
-  // If client region is known, prefer same region
-  if (clientRegion) {
-    const regionMatch = available.find(n => 
-      n.region.toLowerCase().includes(clientRegion.toLowerCase())
-    );
-    if (regionMatch) {
-      return regionMatch;
-    }
-  }
-
-  // Weight by priority and health score
-  const weighted = available.map(n => ({
-    node: n,
-    weight: n.healthScore * (4 - n.priority) // Higher priority = lower number = more weight
-  }));
-
-  // Random weighted selection
-  const totalWeight = weighted.reduce((sum, w) => sum + w.weight, 0);
-  let random = Math.random() * totalWeight;
   
-  for (const w of weighted) {
-    random -= w.weight;
-    if (random <= 0) {
-      return w.node;
-    }
-  }
-
-  // Fallback to first available
-  return available[0];
-}
-
-/**
- * Get recommended node ID (for /sync response)
- */
-export function getRecommendedNodeId(nodes: CDNNode[], cfRegion?: string): string {
-  // Map CF regions to our node IDs
-  const regionMapping: Record<string, string[]> = {
-    // North America
-    "IAD": ["us1"], "EWR": ["us1"], "ORD": ["us1"], "ATL": ["us1"], "MIA": ["us1"],
-    "DFW": ["us2"], "LAX": ["us2"], "SJC": ["us2"], "SEA": ["us2"], "DEN": ["us2"],
-    // Europe
-    "FRA": ["eu1"], "AMS": ["eu1"], "CDG": ["eu1"], "MXP": ["eu1"],
-    "LHR": ["eu2"], "MAN": ["eu2"], "DUB": ["eu2"],
-    // Asia
-    "SIN": ["as1"], "HKG": ["as1"], "BKK": ["as1"],
-    "NRT": ["as2"], "KIX": ["as2"], "ICN": ["as2"],
-    // Australia
-    "SYD": ["au1"], "MEL": ["au1"],
-    // South America
-    "GRU": ["sa1"], "EZE": ["sa1"], "SCL": ["sa1"]
-  };
-
-  if (cfRegion) {
-    // Extract airport code from cf-ray (e.g., "123abc-IAD" -> "IAD")
-    const code = cfRegion.split("-").pop()?.toUpperCase() || "";
-    const preferred = regionMapping[code];
-    if (preferred && preferred.length > 0) {
-      // Check if preferred node is healthy
-      const node = nodes.find(n => n.id === preferred[0] && n.healthScore > 50);
-      if (node) {
-        return node.id;
-      }
-    }
-  }
-
-  // Default to highest priority healthy node
-  const best = nodes
-    .filter(n => n.healthScore > 50)
-    .sort((a, b) => a.priority - b.priority)[0];
+  // Timezone-based selection (Luarmor lines 161-179)
+  const utcHour = new Date().getUTCHours();
+  let regionGroup: string;
   
-  return best?.id || "us1";
-}
-
-/**
- * Update node health (call after successful/failed requests)
- */
-export function updateNodeHealth(
-  nodeId: string, 
-  success: boolean, 
-  latencyMs?: number
-): void {
-  const current = nodeHealth.get(nodeId) || { score: 100, lastCheck: 0, latency: 0 };
-  
-  if (success) {
-    // Increase score on success (max 100)
-    current.score = Math.min(100, current.score + 5);
-    if (latencyMs) {
-      current.latency = latencyMs;
-    }
+  if (utcHour >= 21 || utcHour < 5) {
+    regionGroup = "eu";
+  } else if (utcHour >= 5 && utcHour < 15) {
+    regionGroup = "asia";
   } else {
-    // Decrease score on failure
-    current.score = Math.max(0, current.score - 20);
+    regionGroup = "us";
   }
   
-  current.lastCheck = Date.now();
-  nodeHealth.set(nodeId, current);
+  const pool = NODE_POOLS[regionGroup];
+  const node = weightedRandom(pool);
+  return { nodeId: node.id, region: node.region };
+}
+
+function weightedRandom(pool: CDNNode[]): CDNNode {
+  const totalWeight = pool.reduce((sum, n) => sum + n.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const node of pool) {
+    r -= node.weight;
+    if (r <= 0) return node;
+  }
+  return pool[0];
 }
 
 /**
- * Generate node list for /sync response (Luarmor-compatible format)
+ * Generate Lua code for client-side node selection
+ * This is embedded in Layer 1 bootstrap (Luarmor-identical pattern)
  */
-export function generateNodeList(supabaseUrl: string): string[] {
-  const nodes = getCDNNodes(supabaseUrl);
-  
-  // Return only healthy nodes, formatted as Luarmor expects
-  return nodes
-    .filter(n => n.healthScore > 50)
-    .sort((a, b) => a.priority - b.priority)
-    .map(n => n.url);
+export function generateLuaNodeSelector(supabaseUrl: string): string {
+  return `
+-- ShadowAuth CDN Node Selection (Luarmor-identical timezone algo)
+local _SA_NODE = "${supabaseUrl}/functions/v1"
+do
+  local _tz = os.time(os.date("*t")) - os.time(os.date("!*t"))
+  if _tz < 0 then _tz = (86400 + -(-_tz % 86400)) % 86400 else _tz = _tz % 86400 end
+  local _h = _tz / 3600
+  -- Node selection is cosmetic for edge functions (all route to Deno Deploy CDN)
+  -- but the algorithm matches Luarmor for behavioral fingerprint consistency
+  if _h >= 21 or _h < 5 then
+    _SA_NODE = "${supabaseUrl}/functions/v1" -- EU hours
+  elseif _h >= 5 and _h < 15 then
+    _SA_NODE = "${supabaseUrl}/functions/v1" -- Asia hours
+  else
+    _SA_NODE = "${supabaseUrl}/functions/v1" -- US hours
+  end
+  pcall(function()
+    if game:GetService("LocalizationService"):GetCountryRegionForPlayerAsync(game:GetService("Players").LocalPlayer) == "AU" then
+      _SA_NODE = "${supabaseUrl}/functions/v1" -- AU override
+    end
+  end)
+end
+`;
 }
 
 /**
- * Generate detailed node info for dashboard/debugging
+ * Get node info for API responses (used by /sync endpoint)
  */
-export function getNodeStatus(supabaseUrl: string): {
-  nodes: CDNNode[];
-  recommended: string;
-  healthyCount: number;
-  totalCount: number;
-} {
-  const nodes = getCDNNodes(supabaseUrl);
-  const healthy = nodes.filter(n => n.healthScore > 50);
+export function getNodeInfo(req: Request): { nodeId: string; region: string; allNodes: string[] } {
+  const selected = selectNode(req);
+  const allNodes = Object.values(NODE_POOLS)
+    .flat()
+    .map(n => n.id);
   
   return {
-    nodes,
-    recommended: getRecommendedNodeId(nodes),
-    healthyCount: healthy.length,
-    totalCount: nodes.length
+    nodeId: selected.nodeId,
+    region: selected.region,
+    allNodes,
   };
 }

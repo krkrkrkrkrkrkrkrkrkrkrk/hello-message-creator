@@ -5,128 +5,31 @@ import {
   uint8ArrayToBase64, 
   calculateChecksum 
 } from "../_shared/binary-stream.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shadow-sig, x-delivery-mode",
-  "Cache-Control": "no-store",
-};
+import {
+  corsHeaders,
+  isExecutor,
+  hashHWID,
+  fastHash32,
+  generateSalt,
+  xorEncrypt,
+  getClientIP,
+  getCountryFromIP,
+  steganographicWatermark,
+  deriveEncryptionKey,
+} from "../_shared/shared-utils.ts";
 
 // ==================== IP GEOLOCATION ====================
-// Using ip-api.com free tier (no API key needed, 45 requests/minute limit)
-async function getCountryFromIP(ip: string): Promise<string | null> {
-  // Skip for localhost/private IPs
-  if (ip === "unknown" || ip === "127.0.0.1" || ip.startsWith("192.168.") || ip.startsWith("10.")) {
-    return null;
-  }
-  
-  try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode`, {
-      signal: AbortSignal.timeout(3000) // 3 second timeout
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.status === "success" && data.country) {
-        return data.country;
-      }
-    }
-  } catch (e) {
-    console.log("IP geolocation failed:", e);
-  }
-  
-  return null;
-}
+// Imported from shared-utils: getCountryFromIP
 
 // ==================== SECURITY FUNCTIONS ====================
-
-function isExecutor(ua: string): boolean {
-  const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i, 
-    /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i, 
-    /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i, /volt/i];
-  return patterns.some(p => p.test(ua));
-}
-
-function encStr(str: string, key: number): number[] {
-  const nums: number[] = [];
-  for (let i = 0; i < str.length; i++) {
-    nums.push(str.charCodeAt(i) ^ ((key + i * 7) % 256));
-  }
-  return nums;
-}
+// isExecutor, hashHWID, fastHash32, generateSalt, xorEncrypt all imported from shared-utils
 
 function obfuscateLua(code: string, keyId: string): string {
-  const seed = Date.now() % 100000;
-  const wmData = encStr(`WM:${keyId}:${Date.now()}`, seed);
-  const watermark = `--[[${wmData.join(",")}]]`;
-  
-  // Return code with watermark only, no wrapper to avoid environment isolation issues
-  return `${watermark}
-${code}`;
+  // Use steganographic watermark instead of comment-based (cannot be stripped by regex)
+  return steganographicWatermark(code, keyId);
 }
 
-function xorEncrypt(data: string, key: string): string {
-  const encoder = new TextEncoder();
-  const dataBytes = encoder.encode(data);
-  const result = new Uint8Array(dataBytes.length);
-  
-  for (let i = 0; i < dataBytes.length; i++) {
-    const keyByte = key.charCodeAt(i % key.length);
-    const posByte = (i * 7 + 13) % 256;
-    result[i] = dataBytes[i] ^ keyByte ^ posByte;
-  }
-  
-  // Convert to base64 properly
-  let binary = '';
-  for (let i = 0; i < result.length; i++) {
-    binary += String.fromCharCode(result[i]);
-  }
-  return btoa(binary);
-}
-
-function generateSalt(keyId: string, hwid: string, timestamp: number): string {
-  const combined = `${keyId}:${hwid}:${timestamp}:shadowauth_v3`;
-  let hash = 0;
-  for (let i = 0; i < combined.length; i++) {
-    hash = ((hash << 5) - hash) + combined.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36) + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
-}
-
-async function hashHWID(hwid: string): Promise<string> {
-  const data = new TextEncoder().encode(hwid + "shadowauth_v7");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-// ==================== RNG TRANSFORMATION FUNCTIONS (RBLXWHITELIST PATTERN) ====================
-// These must match the client's inverse functions
-// f1(x) = 2x - 32 → Client inverse: f1^-1(y) = (y + 32) / 2
-// f2(x) = 5x + 256 → Client inverse: f2^-1(y) = (y - 256) / 5
-function transformRNG1(value: number): number {
-  return (value * 2) - 32;
-}
-
-function transformRNG2(value: number): number {
-  return (value * 5) + 256;
-}
-
-// Float detection - if math.random() was hooked to return integer, this detects it
-function isFloat(value: number): boolean {
-  return value % 1 !== 0;
-}
-
-const rateLimit = new Map<string, number>();
-
-function fastHash32(input: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0");
-}
+// xorEncrypt, generateSalt, hashHWID, fastHash32 all imported from shared-utils
 
 serve(async (req) => {
   const startTime = Date.now();
@@ -139,8 +42,7 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
   
-  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
-                   req.headers.get("cf-connecting-ip") || "unknown";
+  const clientIP = getClientIP(req);
   const ua = req.headers.get("user-agent") || "";
 
   // Log request helper
@@ -510,20 +412,8 @@ serve(async (req) => {
     const serverTimestamp = Math.floor(Date.now() / 1000);
     const derivationSalt = generateSalt(keyIdForWatermark, hwid || "unknown", serverTimestamp);
     
-    // Derive encryption key
-    const derivedKeySource = `${derivationSalt}${hwid || "unknown"}${session_key || ""}${serverTimestamp}`;
-    let derivedHash = 0;
-    for (let i = 0; i < derivedKeySource.length; i++) {
-      derivedHash = ((derivedHash * 31) ^ derivedKeySource.charCodeAt(i)) >>> 0;
-      derivedHash = derivedHash % 2147483647;
-    }
-    
-    let derivedKey = "";
-    let seed = derivedHash;
-    for (let i = 0; i < 32; i++) {
-      seed = ((seed * 1103515245 + 12345) ^ seed) >>> 0;
-      derivedKey += String.fromCharCode((seed % 95) + 32);
-    }
+    // Derive encryption key using shared utility (matches Lua client derivation)
+    const derivedKey = deriveEncryptionKey(derivationSalt, hwid || "unknown", session_key || "", serverTimestamp);
     
     // ==================== BINARY STREAM DELIVERY ====================
     let encrypted: string;
