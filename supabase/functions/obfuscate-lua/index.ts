@@ -637,7 +637,7 @@ serve(async (req) => {
         // Pass user preferences - the client.obfuscate() method will
         // dynamically fetch node options and apply them correctly
         const luraphOptions: LuraphOptions = {};
-        }
+
         if (options?.controlFlow !== false) {
           luraphOptions.CONTROL_FLOW = true;
         }
