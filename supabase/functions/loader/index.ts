@@ -887,6 +887,27 @@ serve(async (req) => {
         });
       }
 
+      // Auto-purge ALL stale builds for this script (old loader versions)
+      try {
+        const { data: oldBuilds } = await supabase
+          .from("script_builds")
+          .select("version")
+          .eq("script_id", scriptId);
+        if (oldBuilds) {
+          const staleVersions = oldBuilds
+            .filter(b => b.version !== dbVersion)
+            .map(b => b.version);
+          if (staleVersions.length > 0) {
+            await supabase
+              .from("script_builds")
+              .delete()
+              .eq("script_id", scriptId)
+              .in_("version", staleVersions);
+            console.log(`[Cache] Purged ${staleVersions.length} stale builds for ${scriptId.substring(0, 8)}`);
+          }
+        }
+      } catch (_e) { /* non-critical */ }
+
       // Generate + Luraph obfuscate
       const raw = generateFullLoader(supabaseUrl!, scriptId, initVersion);
       const luraphResult = await obfuscateWithLuraph(raw, `full_${scriptId.substring(0, 8)}`);
