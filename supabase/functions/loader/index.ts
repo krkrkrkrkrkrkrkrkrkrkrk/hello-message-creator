@@ -768,10 +768,10 @@ serve(async (req) => {
 
       loaderCache.set(cacheKey, { code: protected_, timestamp: Date.now() });
 
-      // Persist to DB
+      // Persist to DB with version-aware key
       await supabase.from("script_builds").upsert({
         script_id: scriptId,
-        version: initVersion,
+        version: dbVersion,
         layer5: protected_,
         updated_at: new Date().toISOString(),
       }, { onConflict: "script_id,version" });
