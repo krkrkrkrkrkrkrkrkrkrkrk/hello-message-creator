@@ -111,7 +111,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "19.2.0";
+const LOADER_VERSION = "19.3.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -734,7 +734,8 @@ serve(async (req) => {
     // FULL LOADER (single fetch — Luarmor architecture)
     // =====================================================
     if (layerParam === "full") {
-      const cacheKey = `full_${scriptId.substring(0, 8)}_${initVersion}`;
+      // Cache key includes loader version to invalidate on code changes
+      const cacheKey = `full_${scriptId.substring(0, 8)}_${initVersion}_v${LOADER_VERSION}`;
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
         return new Response(cached.code, {
@@ -743,12 +744,13 @@ serve(async (req) => {
         });
       }
 
-      // Check DB cache
+      // Check DB cache (version-aware: include loader version to bust stale builds)
+      const dbVersion = `${initVersion}_lv${LOADER_VERSION}`;
       const { data: build } = await supabase
         .from("script_builds")
         .select("layer5")
         .eq("script_id", scriptId)
-        .eq("version", initVersion)
+        .eq("version", dbVersion)
         .maybeSingle();
 
       if (build?.layer5 && build.layer5.length > 100) {
@@ -766,10 +768,10 @@ serve(async (req) => {
 
       loaderCache.set(cacheKey, { code: protected_, timestamp: Date.now() });
 
-      // Persist to DB
+      // Persist to DB with version-aware key
       await supabase.from("script_builds").upsert({
         script_id: scriptId,
-        version: initVersion,
+        version: dbVersion,
         layer5: protected_,
         updated_at: new Date().toISOString(),
       }, { onConflict: "script_id,version" });
