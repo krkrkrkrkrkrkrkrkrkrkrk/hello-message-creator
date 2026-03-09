@@ -502,33 +502,43 @@ local ${funcName} = function()
 
   -- Timing: report how long init took
   local _initTime = os.clock() - _SA_CLOCK
-  print("[ShadowAuth] Init: " .. string.format("%.3f", _initTime) .. "s")
 
-  -- Service sanity (anti-sandbox)
-  local _saServiceOk = pcall(function()
-    game:GetService("HttpService")
-    game:GetService("RunService")
-    game:GetService("Players")
-    game:GetService("RbxAnalyticsService")
-  end)
-  if not _saServiceOk then
-    updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100))
-    task.wait(1.2); closeGui(false); return
+  -- Parallel security checks (non-blocking, fast)
+  local _securityOk = true
+  local _securityChecks = {
+    function()
+      local ok = pcall(function()
+        game:GetService("HttpService")
+        game:GetService("RunService")
+        game:GetService("Players")
+        game:GetService("RbxAnalyticsService")
+      end)
+      if not ok then _securityOk = false; updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100)) end
+    end,
+    function()
+      if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
+        _securityOk = false; updateStatus("❌ Integrity failure", Color3.fromRGB(255,100,100))
+      end
+    end,
+    function()
+      pcall(function()
+        if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then
+          _securityOk = false; updateStatus("❌ Environment tampered", Color3.fromRGB(255,100,100))
+        end
+      end)
+    end,
+    function()
+      if _SA_DBG_SCORE and _SA_DBG_SCORE >= 8 then
+        _securityOk = false; updateStatus("❌ Debug tools detected", Color3.fromRGB(255,100,100))
+      end
+    end,
+  }
+
+  for _, check in ipairs(_securityChecks) do pcall(check) end
+
+  if not _securityOk then
+    task.wait(1); closeGui(false); return
   end
-
-  -- Honeypot check
-  if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
-    updateStatus("❌ Integrity failure", Color3.fromRGB(255,100,100))
-    task.wait(1.5); closeGui(false); return
-  end
-
-  -- getfenv key check
-  pcall(function()
-    if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then
-      updateStatus("❌ Environment tampered", Color3.fromRGB(255,100,100))
-      task.wait(1.5); closeGui(false); return
-    end
-  end)
 
   _SA_CHECK_TIME()
 
