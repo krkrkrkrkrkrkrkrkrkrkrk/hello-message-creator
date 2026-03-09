@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Database, Plus, Trash2, Eye, Code, 
-  Loader2, Search, RefreshCw, Download, Edit, 
+import {
+  Database, Plus, Trash2, Eye, Code,
+  Loader2, Search, RefreshCw, Download, Edit,
   Calendar, ExternalLink, Filter, Upload, FileText, Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import {
   Select,
@@ -26,10 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import AdvancedScriptUpload from "@/components/scripts/AdvancedScriptUpload";
 import SelectProviderModal from "@/components/scripts/SelectProviderModal";
 import { getFunctionsBaseUrl } from "@/lib/functions-base-url";
+
 
 
 interface Script {

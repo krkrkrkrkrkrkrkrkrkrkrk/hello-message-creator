@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Upload, FileText, Shield, Zap, Code, Lock, 
+import {
+  Upload, FileText, Shield, Zap, Code, Lock,
   ChevronDown, ChevronUp, Check, X, Cloud,
   Settings, Cpu, Eye, Loader2, CheckCircle2, Edit3, Key, Coins, AlertCircle
 } from "lucide-react";
@@ -14,6 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import MonacoLuaEditor from "@/components/MonacoLuaEditor";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
 
 export interface ObfuscationSettings {
   type: "luraph" | "none";
