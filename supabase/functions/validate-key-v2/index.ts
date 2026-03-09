@@ -52,6 +52,8 @@ function fastHash32Bytes(input: string): string {
   }
   return (h >>> 0).toString(16).padStart(8, "0");
 }
+
+serve(async (req) => {
   const startTime = Date.now();
   let statusCode = 200;
   let scriptId: string | null = null;
