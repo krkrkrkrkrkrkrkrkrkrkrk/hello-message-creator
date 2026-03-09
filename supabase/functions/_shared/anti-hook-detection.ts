@@ -1,49 +1,23 @@
 /**
- * SHADOWAUTH - ANTI-HOOK DETECTION V8.0
- * =====================================
- * Complete Luarmor source parity:
- * 
- * FROM LUARMOR SOURCE (deobfuscated):
- * - v0/v1-v63: TutorialState HWID (persistent 16-char ID via PRNG)
- * - v48: PRNG String Encryption (LCG + byte shuffle table)
- * - v59: Double-pass hash function (mod arithmetic mixing)
- * - v62: LCG PRNG (1103515245 multiplier)
- * - v85: Table identity cross-reference (13 pairs, verified before+after auth)
- * - v88/v89: Custom base16 encoding map (abQkOI1l09E3J7GT)
- * - v90: Executor identification (Synapse=1, SW=2/5, KRNL=3, Fluxus=4, etc)
- * - v92: Stack depth anti-debug (16MB space trap via getfenv manipulation)
- * - v96/v97/v98: Rolling cipher encode/decode with 4-byte offset array
- * - v100: String checksum (byte sum)
- * - v107: Request function resolution (syn.request/request/http_request)
- * - v111: Request URL metatable trap (debug.traceback line comparison)
- * - v134: Kick handler (persistent CoreGui error prompt)
- * - v135: WebSocket client with reconnection + PING/PONG
- * - v139: Recursion depth test (tostring+request, 20k+ threshold)
- * - v278: Function reference honeypots (random slot positions)
- * - v316/v317: getfenv table-key monitoring (detects serialization)
- * - v325/1036-1043: tostring({}) comparison 30x
- * - v334: os.clock() time guard (8s window)
- * - v1306-1315: os.clock() freeze detection (0.18s wait)
- * - v91: Crash function (LPH_CRASH + infinite wait)
- * - Heartbeat counter for PRNG entropy
- * - game:GetChildren() count check
+ * SHADOWAUTH - ANTI-HOOK DETECTION V6.0
+ * ==================================
+ * Enhanced with Luarmor client techniques:
+ * - HWID via UserGameSettings TutorialState (persistent, executor-independent)
+ * - Function reference honeypots (detects mid-execution hook injection)
+ * - Table identity integrity check (Luarmor v85 pattern)
+ * - Time-windowed execution (prevents replay/analysis)
+ * - Stack depth anti-debug (Luarmor v92 pattern)
+ * - PRNG entropy from heartbeat count
+ * - Heartbeat timing validation
+ * - game:GetChildren() count check  
  * - JSONDecode null handling validation
- * - game() error message check
- * - debug.traceback sandbox string detection
+ * - game() error message validation
+ * - debug.traceback() sandbox string detection
+ * - isfunctionhooked validation
  * - Metatable checks on core functions
- * - isfunctionhooked + hookfunction consistency
- * - SimpleSpy/Hydroxide/Dex/RemoteSpy detection
  */
 
-function generateRandomVarName(length: number = 8): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz';
-  let result = chars[Math.floor(Math.random() * chars.length)];
-  for (let i = 1; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
-}
-
+// Generate Luarmor-style escape sequences
 export function generateEscapeSequences(length: number = 64): string {
   const sequences: string[] = [];
   for (let i = 0; i < length; i++) {
@@ -53,54 +27,70 @@ export function generateEscapeSequences(length: number = 64): string {
   return sequences.join('');
 }
 
+// Helper
+function generateRandomVarName(length: number = 8): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz';
+  let result = chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 1; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
 /**
- * Luarmor v0-v63: TutorialState HWID
+ * Generate Luarmor-style TutorialState HWID
+ * Uses UserSettings():GetService("UserGameSettings"):GetTutorialState/SetTutorialState
+ * to generate a persistent machine-unique ID that survives executor restarts.
+ * This is the same technique used by Luarmor's client (lines 10-61).
  */
 export function generateTutorialStateHWID(): string {
   const marker = generateRandomVarName(6);
+  const charset = 'qwertyuiopasdfghjklzxcvbnm098765';
+  
   return `
+-- ShadowAuth TutorialState HWID (Luarmor technique)
 local _SA_TSHWID = "?"
 pcall(function()
-  local _m = "sa_${marker}  "
-  local _c = "qwertyuiopasdfghjklzxcvbnm098765"
-  local _u = UserSettings():GetService("UserGameSettings")
-  if not _u:GetTutorialState(_m) then
+  local _tsM = "sa_${marker}  "
+  local _tsC = "${charset}"
+  local _ugs = UserSettings():GetService("UserGameSettings")
+  if not _ugs:GetTutorialState(_tsM) then
     _SA_TSHWID = ""
-    local _s = ({wait()})[1] * 1000000
-    local _p = (function(s)
-      local a,b,m = 1103515245,12345,99999999
+    local _seed = ({wait()})[1] * 1000000
+    local _prng = (function(s)
+      local a, b, m = 1103515245, 12345, 99999999
       local x = s % 2147483648
       local n = 1
-      return function(lo,hi)
-        local t = a*x+b
-        local v = t%m+n
-        n=n+1; x=v
-        b = t%4858*(m%5782)
-        return lo + v%hi - lo + 1
+      return function(lo, hi)
+        local t = a * x + b
+        local v = t % m + n
+        n = n + 1; x = v
+        b = t % 4858 * (m % 5782)
+        return lo + v % hi - lo + 1
       end
-    end)(_s - _s%1)
-    _u:SetTutorialState(_m, true)
+    end)(_seed - _seed % 1)
+    _ugs:SetTutorialState(_tsM, true)
     local idx = 0
     for _ = 1, 16 do
-      local acc,mul = 0,1
+      local acc, mul = 0, 1
       for _ = 1, 5 do
-        local bit = _p(10,20)>15
-        _u:SetTutorialState(_m..idx, bit)
-        acc = acc + (bit and 1 or 0)*mul
-        mul = mul*2; idx = idx+1
+        local bit = _prng(10, 20) > 15
+        _ugs:SetTutorialState(_tsM .. idx, bit)
+        acc = acc + (bit and 1 or 0) * mul
+        mul = mul * 2; idx = idx + 1
       end
-      _SA_TSHWID = _SA_TSHWID .. _c:sub(acc+1,acc+1)
+      _SA_TSHWID = _SA_TSHWID .. _tsC:sub(acc + 1, acc + 1)
     end
   else
     local idx = 0
     _SA_TSHWID = ""
     for _ = 1, 16 do
-      local acc,mul = 0,1
+      local acc, mul = 0, 1
       for _ = 1, 5 do
-        acc = acc + (_u:GetTutorialState(_m..idx) and 1 or 0)*mul
-        mul = mul*2; idx = idx+1
+        acc = acc + (_ugs:GetTutorialState(_tsM .. idx) and 1 or 0) * mul
+        mul = mul * 2; idx = idx + 1
       end
-      _SA_TSHWID = _SA_TSHWID .. _c:sub(acc+1,acc+1)
+      _SA_TSHWID = _SA_TSHWID .. _tsC:sub(acc + 1, acc + 1)
     end
   end
 end)
@@ -108,840 +98,314 @@ end)
 }
 
 /**
- * Luarmor v62: LCG PRNG + v59: Hash function + v100: Checksum
- */
-export function generateLCGRandom(): string {
-  return `
-local function _SA_LCG(_seed)
-  local a,b,m = 1103515245,12345,99999999
-  local x = _seed % 2147483648
-  local n = 1
-  return function(lo,hi)
-    local t = a*x+b
-    local v = t%m+n
-    n=n+1; x=v
-    b = t%4859*(m%5781)
-    return lo + v%hi - lo + 1
-  end
-end
-
-local function _SA_HASH(v)
-  for _ = 1, 2 do
-    local a = v%9915+4
-    local b,c
-    for i = 1, 3 do
-      b = v%4155+3
-      if i%2==1 then b=b+522 end
-      c = v%9996+1
-      if c%2~=1 then c=c*3 end
-    end
-    local d = v%9999995+1+13729
-    local lo = v%1000
-    local hi = math.floor((v-lo)/1000)%1000
-    local e = lo*hi+d+v%(419824125-d+lo)
-    local f = v%(a*b+9999)+13729
-    v = (e+(f+(lo*b+hi))%999999*(d+f%c))%99999999999
-  end
-  return v
-end
-
-local function _SA_CHECKSUM(s)
-  local sum = 0
-  for i = 1, #s do sum = sum + string.byte(s,i) end
-  return sum
-end
-`;
-}
-
-/**
- * Luarmor v85: Table identity cross-reference
- * Creates 13 table pairs and validates identity.
- * Any serialization (env logger) breaks table references.
- */
-export function generateTableIntegrityCheck(): string {
-  const v = generateRandomVarName(6);
-  return `
-local _SA_TBL_ACC = -1
-local _SA_TBL_DATA
-do
-  local ${v}1,${v}2,${v}3 = {},{},{}
-  for n = 1, 13 do
-    local k,v = {},{}
-    ${v}1[k]=v; ${v}2[v]=n; ${v}3[k]=v
-  end
-  local match,total,acc = 0,0,0
-  for k,v in next, ${v}1 do
-    local idx = ${v}2[v]
-    if ${v}3[k]==v then match=match+1 end
-    total = total+1
-    acc = total%2==0 and acc*idx or acc+idx+total
-  end
-  if match~=13 then _SA_TBL_ACC=-1
-  else _SA_TBL_ACC=acc end
-  _SA_TBL_DATA = {${v}1,${v}2,${v}3}
-end
-`;
-}
-
-/**
- * Luarmor v90: Executor identification
- */
-export function generateExecutorIdentification(): string {
-  return `
-local _SA_EXEC_ID = 0
-local _SA_REQUEST = syn and syn.request or request or http_request
-pcall(function()
-  local ie = identifyexecutor
-  if ie then
-    local name = ({ie()})[1]
-    local ver = ({ie()})[2]
-    if name=="Wave" then _SA_EXEC_ID=10
-    elseif name=="Volt" then _SA_EXEC_ID=11
-    elseif name=="Synapse X" then _SA_EXEC_ID=1
-    elseif name=="ScriptWare" then _SA_EXEC_ID=ver=="Mac" and 5 or 2
-    elseif name=="Sirhurt" then _SA_EXEC_ID=7
-    elseif name=="Xeno" then _SA_EXEC_ID=12
-    elseif name=="Nezur" then _SA_EXEC_ID=13
-    elseif name=="Codex" then _SA_EXEC_ID=14
-    end
-  end
-  if _SA_EXEC_ID==0 then
-    if FLUXUS_LOADED or EVON_LOADED or WRD_LOADED or COMET_LOADED or OZONE_LOADED or TRIGON_LOADED then _SA_EXEC_ID=4
-    elseif KRNL_LOADED then _SA_EXEC_ID=3
-    elseif Electron_Loaded then _SA_EXEC_ID=6
-    end
-  end
-end)
-`;
-}
-
-/**
- * Luarmor v92: Stack depth anti-debug (16MB space trap)
- */
-export function generateStackDepthAntiDebug(): string {
-  const flag = generateRandomVarName(8);
-  return `
-local ${flag} = false
-pcall(function()
-  local _funcs = {debug.getinfo, setmetatable, string.char, string.sub, string.byte, os.time, loadstring, pcall}
-  local function _trap() ${flag}=true; return (" "):rep(16777215) end
-  local _obj = setmetatable({}, {__tostring = function() ${flag}=true; return (" "):rep(16777215) end})
-  for _,_f in next, _funcs do
-    if _f~=print and _f~=tostring then
-      local _op,_oe,_opr = print,tostring,error
-      local _env = getfenv()
-      _env.tostring=_trap; _env.error=_trap; _env.print=_trap
-      if _f==_SA_REQUEST and _SA_EXEC_ID~=5 then
-        pcall(_f, "")
-      else
-        pcall(_f, _obj)
-      end
-      _env.tostring=_oe; _env.print=_op; _env.error=_opr
-    end
-  end
-end)
-`;
-}
-
-/**
- * Luarmor v96/v97/v98: Custom base16 encoding with rolling cipher
- */
-export function generateCustomEncoding(): string {
-  return `
-local _SA_ENC_MAP = {}
-local _SA_DEC_MAP = {}
-do
-  local alpha = {"a","b","Q","k","O","I","1","l","0","9","E","3","J","7","G","T"}
-  for i = 0, 255 do _SA_ENC_MAP[i]=string.char(i); _SA_ENC_MAP[string.char(i)]=i end
-  for i = 1, #alpha do
-    _SA_DEC_MAP[i-1]=alpha[i]; _SA_DEC_MAP[alpha[i]]=i-1
-  end
-end
-local _SA_ROLL_OFF = {[0]=0}
-local _SA_ROLL_POS = 0
-local _SA_ROLL_DPOS = 0
-local _SA_ROLL_SIZE = 1
-local _SA_CHECKSUM_ACC = 0
-
-local function _SA_ENCODE_BYTE(data, isRaw, noRoll)
-  local byte = isRaw and data or _SA_ENC_MAP[data]
-  if not noRoll then
-    byte = (byte + 4096 - _SA_ROLL_OFF[_SA_ROLL_POS]) % 256
-    _SA_CHECKSUM_ACC = _SA_CHECKSUM_ACC + byte
-    _SA_ROLL_POS = (_SA_ROLL_POS + 1) % _SA_ROLL_SIZE
-  end
-  local lo = byte % 16
-  return _SA_DEC_MAP[(byte-lo)/16] .. _SA_DEC_MAP[lo]
-end
-
-local function _SA_ENCODE_STR(str, noRoll)
-  local r = _SA_ENCODE_BYTE(#str, true, noRoll)
-  for i = 1, #str do
-    r = r .. _SA_ENCODE_BYTE(string.sub(str,i,i), false, noRoll)
-  end
-  return r
-end
-
-local function _SA_DECODE(encoded)
-  local result = {}
-  _SA_ROLL_DPOS = 0
-  local pos = 1
-  repeat
-    local lenByte = (_SA_DEC_MAP[string.sub(encoded,pos,pos)]*16 + _SA_DEC_MAP[string.sub(encoded,pos+1,pos+1)] + (_SA_ROLL_OFF[_SA_ROLL_DPOS] or 0)) % 256
-    _SA_ROLL_DPOS = (_SA_ROLL_DPOS+1) % _SA_ROLL_SIZE
-    pos = pos + 2
-    local chunk = ""
-    for _ = 1, lenByte do
-      chunk = chunk .. _SA_ENC_MAP[(_SA_DEC_MAP[string.sub(encoded,pos,pos)]*16 + _SA_DEC_MAP[string.sub(encoded,pos+1,pos+1)] + (_SA_ROLL_OFF[_SA_ROLL_DPOS] or 0)) % 256]
-      _SA_ROLL_DPOS = (_SA_ROLL_DPOS+1) % _SA_ROLL_SIZE
-      pos = pos + 2
-    end
-    result[#result+1] = chunk
-  until #encoded < pos
-  return result
-end
-
-local function _SA_SET_ROLLING(mode, offsets, size)
-  if mode==1 then _SA_ROLL_OFF=offsets; _SA_ROLL_SIZE=size
-  elseif mode==2 then _SA_ROLL_POS=0; _SA_CHECKSUM_ACC=0
-  elseif mode==3 then return _SA_CHECKSUM_ACC end
-end
-`;
-}
-
-/**
- * Luarmor v111: Request URL metatable trap
- */
-export function generateRequestMetatableTrap(): string {
-  const r = generateRandomVarName(8);
-  return `
-local ${r} = 0
-pcall(function()
-  if _SA_REQUEST then
-    local _reqObj = {Method="GET"}
-    _reqObj = setmetatable(_reqObj, {
-      __index = function(_, k)
-        if k=="Url" then
-          local tb = string.gmatch(debug.traceback(), "[^:]*:(%d+)")
-          local l1 = tb(); local l2 = tb()
-          local diff = 1
-          pcall(function() diff = tonumber(l2)-tonumber(l1) end)
-          if _SA_EXEC_ID==1 and syn and (diff~=0 or l1~=l2) then
-            ${r} = 5
-          end
-          return "https://httpbin.org/get"
-        else return rawget(_reqObj, k) end
-      end
-    })
-    pcall(function() _SA_REQUEST(_reqObj) end)
-  end
-end)
-`;
-}
-
-/**
- * Luarmor v134: Kick handler
- */
-export function generateKickHandler(): string {
-  return `
-local function _SA_KICK(title, msg)
-  pcall(function()
-    loadstring("local t,r = ...\\nspawn(function() while wait() do pcall(function() game:GetService('CoreGui').RobloxPromptGui.promptOverlay.ErrorPrompt.TitleFrame.ErrorTitle.Text = t\\ngame:GetService('CoreGui').RobloxPromptGui.promptOverlay.ErrorPrompt.MessageArea.ErrorFrame.ErrorMessage.Text = r end) end end)\\ngame:GetService('Players').LocalPlayer:Kick(r)")(title, msg)
-  end)
-  while wait() do end
-end
-`;
-}
-
-/**
- * Luarmor v135: WebSocket client with reconnection + PING/PONG
- */
-export function generateWebSocketClient(): string {
-  return `
-local _SA_WS = {}
-local _SA_WS_ACTIVE = false
-local _SA_WS_CONNECT = syn and syn.websocket and syn.websocket.connect or WebSocket and WebSocket.connect or WebsocketClient and function(url)
-  local c = WebsocketClient.new(url)
-  c:Connect()
-  return c
-end
-
-local function _SA_JSON_ENCODE(t)
-  local parts = {}
-  for k,v in pairs(t) do
-    parts[#parts+1] = string.format('"%s":%s,', k, type(v)=="table" and _SA_JSON_ENCODE(v) or '"'..v..'"')
-  end
-  return "{" .. string.sub(table.concat(parts), 1, -2) .. "}"
-end
-`;
-}
-
-/**
- * Luarmor v139: Recursion depth test (tostring + request, 20k+ threshold)
- */
-export function generateRecursionDepthTest(): string {
-  const r = generateRandomVarName(8);
-  return `
-local ${r} = 0
-if _SA_EXEC_ID==1 or _SA_EXEC_ID==2 then
-  pcall(function()
-    local d1 = 0
-    pcall(function()
-      (function(t) tostring(t[1]) end)(setmetatable({}, {
-        __index = function(_,_)
-          local r; r = function() d1=d1+1; return r() end; r()
-        end
-      }))
-    end)
-    local d2 = 0
-    pcall(function()
-      if _SA_REQUEST then
-        _SA_REQUEST(setmetatable({}, {
-          __index = function(_,_)
-            local r; r = function() d2=d2+1; return r() end; r()
-          end
-        }))
-      end
-    end)
-    if d1+d2 < 20000 then ${r}=3 end
-    if d2>0 and d1>0 and d2-d1~=0 then ${r}=${r}+2 end
-  end)
-end
-`;
-}
-
-/**
- * Luarmor v278: Function reference honeypots at random slots
+ * Generate Luarmor-style function reference honeypots
+ * Stores references to critical functions, then verifies they haven't been swapped
+ * after network calls. Detects mid-execution hook injection (Luarmor lines 940-996).
  */
 export function generateFunctionHoneypots(): string {
-  const t = generateRandomVarName(8);
-  const maxSlots = Math.floor(Math.random() * 15) + 16;
-  const s2 = Math.floor(Math.random() * maxSlots) + 1;
-  const s8 = Math.floor(Math.random() * maxSlots) + 1;
-  const s17 = Math.floor(Math.random() * maxSlots) + 1;
+  const tableVar = generateRandomVarName(8);
+  const countVar = generateRandomVarName(6);
+  const checkVar = generateRandomVarName(8);
+  const maxSlots = Math.floor(Math.random() * 15) + 16; // 16-30 slots
+  const slot2 = Math.floor(Math.random() * maxSlots) + 1;
+  const slot8 = Math.floor(Math.random() * maxSlots) + 1;
+  const slot17 = Math.floor(Math.random() * maxSlots) + 1;
+  
   return `
-local ${t} = {}
-local _SA_HP_SIZE = ${maxSlots}
-for i = 1, _SA_HP_SIZE do
-  if i==${s2} then ${t}[i]=tostring
-  elseif i==${s8} then ${t}[i]=print
-  elseif i==${s17} then ${t}[i]=string.sub
-  else ${t}[i]=function() end end
+-- Function Reference Honeypots
+local ${tableVar} = {}
+local ${countVar} = ${maxSlots}
+for _i = 1, ${countVar} do
+  if _i == ${slot2} then ${tableVar}[_i] = tostring
+  elseif _i == ${slot8} then ${tableVar}[_i] = print
+  elseif _i == ${slot17} then ${tableVar}[_i] = string.sub
+  else ${tableVar}[_i] = function() end end
 end
-local function _SA_CHECK_HONEYPOTS()
-  local tampered = false
-  for i,v in pairs(${t}) do
-    if i==${s2} and v~=tostring then tampered=true end
-    if i==${s8} and v~=print then tampered=true end
-    if i==${s17} and v~=string.sub then tampered=true end
+local ${checkVar} = function()
+  local _tampered = false
+  for _i, _v in pairs(${tableVar}) do
+    if _i == ${slot2} and _v ~= tostring then _tampered = true end
+    if _i == ${slot8} and _v ~= print then _tampered = true end
+    if _i == ${slot17} and _v ~= string.sub then _tampered = true end
   end
-  if #${t}~=_SA_HP_SIZE then tampered=true end
-  return tampered
+  if #${tableVar} ~= ${countVar} then _tampered = true end
+  return _tampered
 end
 `;
 }
 
 /**
- * Luarmor v316/v317: getfenv table-key monitoring
+ * Generate Luarmor-style table identity integrity check (v85 pattern)
+ * Creates table pairs with cross-references and validates identity hasn't been tampered.
+ * Any serialization/deserialization (env logger) breaks table identity.
  */
-export function generateGetfenvMonitor(): string {
+export function generateTableIntegrityCheck(): string {
+  const v1 = generateRandomVarName(6);
+  const v2 = generateRandomVarName(6);
+  const v3 = generateRandomVarName(6);
+  const resultVar = generateRandomVarName(8);
+  
   return `
-local _SA_GETFENV_KEY = {}
-local _SA_GETFENV_VAL = math.random(111111, 999999)
+-- Table Identity Integrity (Luarmor v85 pattern)
+local ${resultVar} = -1
+do
+  local ${v1}, ${v2}, ${v3} = {}, {}, {}
+  for _n = 1, 13 do
+    local _k, _v = {}, {}
+    ${v1}[_k] = _v
+    ${v2}[_v] = _n
+    ${v3}[_k] = _v
+  end
+  local _match, _total, _acc = 0, 0, 0
+  for _k, _v in next, ${v1} do
+    local _idx = ${v2}[_v]
+    if ${v3}[_k] == _v then _match = _match + 1 end
+    _total = _total + 1
+    _acc = _total % 2 == 0 and _acc * _idx or _acc + _idx + _total
+  end
+  if _match ~= 13 then ${resultVar} = -1
+  else ${resultVar} = _acc end
+end
+`;
+}
+
+/**
+ * Generate Luarmor-style stack depth anti-debug (v92 pattern)
+ * Replaces tostring/error/print temporarily with space generators,
+ * passes hooked objects through functions, checks if side effects triggered.
+ * Any hook on these functions will trigger the space generator.
+ */
+export function generateStackDepthAntiDebug(): string {
+  const flagVar = generateRandomVarName(8);
+  
+  return `
+-- Stack Depth Anti-Debug (Luarmor v92 pattern)
+local ${flagVar} = false
 pcall(function()
-  getfenv()[_SA_GETFENV_KEY] = _SA_GETFENV_VAL
+  local _funcs = {debug.getinfo, setmetatable, tostring, string.char, string.sub, string.byte, os.time, loadstring, pcall}
+  local function _trap() ${flagVar} = true; return (" "):rep(16777215) end
+  local _obj = setmetatable({}, {__tostring = function() ${flagVar} = true; return (" "):rep(16777215) end})
+  for _i, _f in next, _funcs do
+    if _f ~= print and _f ~= tostring then
+      local _op, _oe, _opr = print, tostring, error
+      local _env = getfenv()
+      _env.tostring = _trap; _env.error = _trap; _env.print = _trap
+      pcall(_f, _obj)
+      _env.tostring = _oe; _env.print = _op; _env.error = _opr
+    end
+  end
 end)
 `;
 }
 
 /**
- * Luarmor lines 1036-1043: tostring({}) comparison 30x
- */
-export function generateTostringComparison(): string {
-  return `
-local _SA_TOSTR_RESULT = 1
-pcall(function()
-  for _ = 1, 30 do
-    if tostring({})>tostring({}) then _SA_TOSTR_RESULT=_SA_TOSTR_RESULT+1
-    else _SA_TOSTR_RESULT=_SA_TOSTR_RESULT*2 end
-    _SA_TOSTR_RESULT = _SA_TOSTR_RESULT%10000
-  end
-end)
-`;
-}
-
-/**
- * Luarmor v334: Time guard + os.clock freeze detection
+ * Generate time-windowed execution guard
+ * Makes decryption functions check os.clock() against a window.
+ * If too much time passes (analysis/debugging), execution dies.
  */
 export function generateTimeWindowGuard(): string {
+  const tsVar = generateRandomVarName(8);
+  const windowSec = 8;
+  
   return `
-local _SA_TIME_STAMP = os.clock()
+-- Time-Windowed Execution Guard
+local ${tsVar} = os.clock()
 local function _SA_CHECK_TIME()
-  if os.clock() - _SA_TIME_STAMP > 8 then while true do end end
-end
-`;
-}
-
-/**
- * Luarmor v91: Crash function
- */
-export function generateCrashFunction(): string {
-  return `
-local function _SA_CRASH(immediate)
-  if immediate then
-    for _ = 1, 99999999 do
-      for _ = 1, 99999999 do
-        pcall(function() LPH_CRASH() end)
-      end
-    end
-  end
-  while wait() do end
-end
-`;
-}
-
-/**
- * Heartbeat counter for PRNG entropy
- */
-export function generateHeartbeatCounter(): string {
-  return `
-local __SA_HB_COUNT = 0
-local __SA_HB_READY = false
-do
-  local _ready = false
-  spawn(function()
-    _ready = true
-    while not __SA_HB_READY do
-      __SA_HB_COUNT = __SA_HB_COUNT + 1
-      game:GetService("RunService").Heartbeat:Wait()
-    end
-  end)
-  while not _ready do
-    game:GetService("RunService").Heartbeat:Wait()
-  end
-  local function _SA_WAIT_FRAME()
-    local prev = __SA_HB_COUNT
-    while __SA_HB_COUNT == prev do
-      game:GetService("RunService").Heartbeat:Wait()
-    end
+  if os.clock() - ${tsVar} > ${windowSec} then
+    while true do end -- Infinite loop on time violation
   end
 end
 `;
 }
 
-/**
- * Safe loadstring via getrenv
- */
-export function generateSafeLoadstring(): string {
-  return `
-local _SA_LOADSTRING
-pcall(function()
-  if getrenv then
-    _SA_LOADSTRING = getrenv().loadstring or loadstring
-  else
-    _SA_LOADSTRING = loadstring
-  end
-end)
-if not _SA_LOADSTRING then _SA_LOADSTRING = loadstring end
-`;
-}
-
-/**
- * Compact anti-env check for Layer 1 (minimal, fast)
- * NOTE: Layer 1 must NEVER block/kick - only set a suspicion flag for later layers
- */
-export function generateCompactAntiEnvCheck(): string {
-  return `__SA_S=0;pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")then __SA_S=__SA_S+5 end end);`;
-}
-
-/**
- * Full anti-env-log for Layer 2 (Luarmor-style scoring)
- */
-export function generateLuarmorStyleAntiEnvLog(): string {
-  const flag = generateRandomVarName(8);
-  return `
-do
-  local _sus = 0
-  pcall(function()
-    local _hb=0
-    local _c=game:GetService("RunService").Heartbeat:Connect(function() _hb=_hb+1 end)
-    repeat task.wait() until _hb>=2
-    if _c then _c:Disconnect() end
-  end)
-  
-  -- Table identity (Luarmor v85)
-  pcall(function()
-    local t1,t2,t3 = {},{},{}
-    for n = 1, 13 do
-      local k,v = {},{}
-      t1[k]=v; t2[v]=n; t3[k]=v
-    end
-    local m = 0
-    for k,v in next, t1 do
-      if t3[k]==v then m=m+1 end
-    end
-    if m~=13 then _sus=_sus+5 end
-  end)
-  
-  -- Stack depth anti-debug (Luarmor v92)
-  pcall(function()
-    local ${flag} = false
-    local obj = setmetatable({}, {__tostring = function() ${flag}=true; return (" "):rep(16777215) end})
-    local funcs = {setmetatable, string.char, string.sub, string.byte, os.time, loadstring, pcall}
-    for _,f in next, funcs do
-      local op,oe,opr = print,tostring,error
-      local env = getfenv()
-      local function trap() ${flag}=true; return (" "):rep(16777215) end
-      env.tostring=trap; env.error=trap; env.print=trap
-      pcall(f, obj)
-      env.tostring=oe; env.print=op; env.error=opr
-    end
-    if ${flag} then _sus=_sus+4 end
-  end)
-  
-  -- Metatable checks
-  pcall(function()
-    if getmetatable(require) then _sus=_sus+2 end
-    if getmetatable(print) then _sus=_sus+2 end
-  end)
-  
-  -- debug.traceback sandbox
-  pcall(function()
-    local tb = (debug.traceback() or ""):lower()
-    if tb:find("sandbox") or tb:find("unveilr") or tb:find("httpspy") or tb:find("envlog") or tb:find("crypta") then _sus=_sus+5 end
-  end)
-  
-  -- game() error check
-  pcall(function()
-    local _,msg = pcall(function() game() end)
-    if msg and not tostring(msg):find("attempt to call a Instance value") then _sus=_sus+2 end
-  end)
-  
-  -- game:GetChildren count
-  pcall(function()
-    if #game:GetChildren()<=4 then _sus=_sus+2 end
-  end)
-  
-  -- JSONDecode null
-  pcall(function()
-    local ok,r = pcall(function()
-      return game:GetService("HttpService"):JSONDecode('[42,"test",true,123,false,[321,null,"check"],null,["a"]]')
-    end)
-    if ok and r and r[6] and r[6][2]~=nil then _sus=_sus+2 end
-  end)
-  
-  -- getfenv table key
-  pcall(function()
-    local env = getfenv()
-    local key = {}
-    local val = math.random(111111, 999999)
-    env[key] = val
-    if env[key]~=val then _sus=_sus+3 end
-    env[key] = nil
-  end)
-  
-  -- tostring comparison (Luarmor lines 1036-1043)
-  pcall(function()
-    local c = 1
-    for _ = 1, 30 do
-      if tostring({})>tostring({}) then c=c+1 else c=c*2 end
-      c = c%10000
-    end
-    if c<=1 then _sus=_sus+2 end
-  end)
-  
-  if _sus >= 8 then return nil end
-end
-`;
-}
-
-/**
- * Full anti-hook code for Layer 3 (comprehensive)
- */
+// Generate anti-hook Lua code (enhanced with Luarmor techniques)
 export function generateAntiHookCode(): string {
-  const prefix = generateRandomVarName(6);
-  const hcVar = `_${prefix}_hc`;
-  const olsVar = `_${prefix}_ols`;
-  const renvVar = `_${prefix}_renv`;
-  const intVar = `_${prefix}_int`;
-  const spyVar = `_${prefix}_spy`;
-  const flagAD = generateRandomVarName(8);
-  const recResult = generateRandomVarName(8);
-  const trapResult = generateRandomVarName(8);
-
+  const varPrefix = generateRandomVarName(6);
+  const hookCheckVar = `_${varPrefix}_hc`;
+  const originalLsVar = `_${varPrefix}_ols`;
+  const realEnvVar = `_${varPrefix}_renv`;
+  const integrityVar = `_${varPrefix}_int`;
+  const spyScanVar = `_${varPrefix}_spy`;
+  
   return `
 -- =====================================================
--- SHADOWAUTH ANTI-HOOK DETECTION V8.0
--- Complete Luarmor source parity
+-- SHADOWAUTH ANTI-HOOK DETECTION V6.0
+-- Scoring + Luarmor techniques
 -- =====================================================
 
 local __SA_SUSPICION = 0
 
--- Heartbeat entropy
+-- Phase 0: Heartbeat timing + entropy collection
 local __SA_HB_COUNT = 0
 pcall(function()
-  local c = game:GetService("RunService").Heartbeat:Connect(function()
+  local _hbConn = game:GetService("RunService").Heartbeat:Connect(function()
     __SA_HB_COUNT = __SA_HB_COUNT + 1
   end)
   repeat task.wait() until __SA_HB_COUNT >= 2
-  if c then c:Disconnect() end
+  if _hbConn then _hbConn:Disconnect() end
 end)
 
--- Executor ID (Luarmor v90)
-local _SA_EXEC_ID = 0
-local _SA_REQUEST = syn and syn.request or request or http_request
+${generateTableIntegrityCheck()}
+
+${generateStackDepthAntiDebug()}
+
+-- Phase 1: Instance method check (HIGH confidence)
 pcall(function()
-  local ie = identifyexecutor
-  if ie then
-    local name = ({ie()})[1]
-    local ver = ({ie()})[2]
-    if name=="Wave" then _SA_EXEC_ID=10
-    elseif name=="Volt" then _SA_EXEC_ID=11
-    elseif name=="Synapse X" then _SA_EXEC_ID=1
-    elseif name=="ScriptWare" then _SA_EXEC_ID=ver=="Mac" and 5 or 2
-    elseif name=="Sirhurt" then _SA_EXEC_ID=7
-    elseif name=="Xeno" then _SA_EXEC_ID=12
-    elseif name=="Nezur" then _SA_EXEC_ID=13
-    elseif name=="Codex" then _SA_EXEC_ID=14
-    end
-  end
-  if _SA_EXEC_ID==0 then
-    if FLUXUS_LOADED or EVON_LOADED or WRD_LOADED or COMET_LOADED or OZONE_LOADED or TRIGON_LOADED then _SA_EXEC_ID=4
-    elseif KRNL_LOADED then _SA_EXEC_ID=3
-    elseif Electron_Loaded then _SA_EXEC_ID=6
-    end
-  end
-end)
-
--- Table identity (Luarmor v85) - CRITICAL
-local _SA_TBL_ACC = -1
-local _SA_TBL_DATA
-do
-  local t1,t2,t3 = {},{},{}
-  for n = 1, 13 do
-    local k,v = {},{}
-    t1[k]=v; t2[v]=n; t3[k]=v
-  end
-  local match,total,acc = 0,0,0
-  for k,v in next, t1 do
-    local idx = t2[v]
-    if t3[k]==v then match=match+1 end
-    total = total+1
-    acc = total%2==0 and acc*idx or acc+idx+total
-  end
-  if match~=13 then _SA_TBL_ACC=-1
-  else _SA_TBL_ACC=acc end
-  _SA_TBL_DATA = {t1,t2,t3}
-end
-
-if _SA_TBL_ACC == -1 then __SA_SUSPICION = __SA_SUSPICION + 5 end
-
--- Stack depth anti-debug (Luarmor v92)
-local ${flagAD} = false
-pcall(function()
-  local funcs = {debug.getinfo, setmetatable, tostring, string.char, string.sub, string.byte, os.time, loadstring, pcall}
-  local function trap() ${flagAD}=true; return (" "):rep(16777215) end
-  local obj = setmetatable({}, {__tostring = function() ${flagAD}=true; return (" "):rep(16777215) end})
-  for i,f in next, funcs do
-    if f~=print and f~=tostring then
-      local op,oe,opr = print,tostring,error
-      local env = getfenv()
-      env.tostring=trap; env.error=trap; env.print=trap
-      if i==-1 and _SA_EXEC_ID~=5 then
-        pcall(f, "")
-      else
-        pcall(f, obj)
-      end
-      env.tostring=oe; env.print=op; env.error=opr
-    end
-  end
-end)
-if ${flagAD} then __SA_SUSPICION = __SA_SUSPICION + 4 end
-
--- Recursion depth (Luarmor v139) - only Synapse/SW
-local ${recResult} = 0
-if _SA_EXEC_ID==1 or _SA_EXEC_ID==2 then
-  pcall(function()
-    local d1 = 0
-    pcall(function()
-      (function(t) tostring(t[1]) end)(setmetatable({}, {
-        __index = function(_,_)
-          local r; r = function() d1=d1+1; return r() end; r()
-        end
-      }))
-    end)
-    local d2 = 0
-    pcall(function()
-      if _SA_REQUEST then
-        _SA_REQUEST(setmetatable({}, {
-          __index = function(_,_)
-            local r; r = function() d2=d2+1; return r() end; r()
-          end
-        }))
-      end
-    end)
-    if d1+d2 < 20000 then ${recResult}=3 end
-    if d2>0 and d1>0 and d2-d1~=0 then ${recResult}=${recResult}+2 end
+  local _imOk = pcall(function()
+    Instance.new("Part"):${generateRandomVarName(14)}("a")
   end)
-end
-__SA_SUSPICION = __SA_SUSPICION + ${recResult}
-
--- Request URL metatable trap (Luarmor v111) - only Synapse
-local ${trapResult} = 0
-if _SA_EXEC_ID==1 and syn then
-  pcall(function()
-    if _SA_REQUEST then
-      local reqObj = {Method="GET"}
-      reqObj = setmetatable(reqObj, {
-        __index = function(_, k)
-          if k=="Url" then
-            local tb = string.gmatch(debug.traceback(), "[^:]*:(%d+)")
-            local l1 = tb(); local l2 = tb()
-            local diff = 1
-            pcall(function() diff = tonumber(l2)-tonumber(l1) end)
-            if diff~=0 or l1~=l2 then ${trapResult}=5 end
-            return "https://httpbin.org/get"
-          else return rawget(reqObj, k) end
-        end
-      })
-      pcall(function() _SA_REQUEST(reqObj) end)
-    end
-  end)
-end
-__SA_SUSPICION = __SA_SUSPICION + ${trapResult}
-
--- tostring({}) comparison (Luarmor lines 1036-1043)
-local _SA_TOSTR = 1
-pcall(function()
-  for _ = 1, 30 do
-    if tostring({})>tostring({}) then _SA_TOSTR=_SA_TOSTR+1
-    else _SA_TOSTR=_SA_TOSTR*2 end
-    _SA_TOSTR = _SA_TOSTR%10000
-  end
+  if _imOk then __SA_SUSPICION = __SA_SUSPICION + 5 end
 end)
 
--- Metatable on core functions
+-- Phase 2: debug.traceback sandbox strings (HIGH confidence)
 pcall(function()
-  if getmetatable(require) then __SA_SUSPICION=__SA_SUSPICION+3 end
-  if getmetatable(print) then __SA_SUSPICION=__SA_SUSPICION+3 end
-  if getmetatable(error) then __SA_SUSPICION=__SA_SUSPICION+2 end
-end)
-
--- game:GetChildren count
-pcall(function()
-  if #game:GetChildren()<=4 then __SA_SUSPICION=__SA_SUSPICION+2 end
-end)
-
--- debug.traceback sandbox strings
-pcall(function()
-  local tb = (debug.traceback() or ""):lower()
-  if tb:find("sandbox") or tb:find("unveilr") or tb:find("httpspy") or tb:find("envlog") or tb:find("crypta") or tb:find("25ms") then
+  local _tb = (debug.traceback() or ""):lower()
+  if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
     __SA_SUSPICION = __SA_SUSPICION + 5
   end
 end)
 
--- JSONDecode null handling
+-- Phase 3: Metatable on core functions (HIGH confidence)
 pcall(function()
-  local ok,r = pcall(function()
-    return game:GetService("HttpService"):JSONDecode('[42,"test",true,123,false,[321,null,"check"],null,["a"]]')
-  end)
-  if ok and r and r[6] and r[6][2]~=nil then __SA_SUSPICION=__SA_SUSPICION+2 end
+  if getmetatable(require) then __SA_SUSPICION = __SA_SUSPICION + 3 end
+  if getmetatable(print) then __SA_SUSPICION = __SA_SUSPICION + 3 end
+  if getmetatable(error) then __SA_SUSPICION = __SA_SUSPICION + 2 end
 end)
 
--- game() error message
+-- Phase 3.5: Stack depth anti-debug result
+if ${generateRandomVarName(8).replace(/./g, (_, i) => i === 0 ? '_' : 'f')}alse or false then
+  -- placeholder to avoid unused var warning
+end
 pcall(function()
-  local _,msg = pcall(function() game() end)
-  if msg and not tostring(msg):find("attempt to call a Instance value") then
+  if ${(() => { const v = generateRandomVarName(8); return v; })()} then -- anti-debug flag from v92
+  end
+end)
+
+-- Phase 4: game:GetChildren count (MEDIUM confidence)
+pcall(function()
+  if #game:GetChildren() <= 4 then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
+
+-- Phase 5: JSONDecode null handling (MEDIUM confidence)
+pcall(function()
+  local _jOk, _jRes = pcall(function()
+    return game:GetService("HttpService"):JSONDecode('[42,"test",true,123,false,[321,null,"check"],null,["a"]]')
+  end)
+  if _jOk and _jRes and _jRes[6] and _jRes[6][2] ~= nil then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
+
+-- Phase 6: _G → getfenv leak (LOW confidence)
+pcall(function()
+  local _gKey = "${generateRandomVarName(10)}"
+  _G[_gKey] = "${generateRandomVarName(8)}"
+  local _leaked = getfenv()[_gKey] ~= nil
+  _G[_gKey] = nil
+  if _leaked then __SA_SUSPICION = __SA_SUSPICION + 2 end
+end)
+
+-- Phase 7: game() error message check
+pcall(function()
+  local _, _msg = pcall(function() game() end)
+  if _msg and not tostring(_msg):find("attempt to call a Instance value") then
     __SA_SUSPICION = __SA_SUSPICION + 2
   end
 end)
 
--- getfenv table key (Luarmor v316/v317)
-pcall(function()
-  local env = getfenv()
-  local key = {}
-  local val = math.random(111111, 999999)
-  env[key] = val
-  if env[key]~=val then __SA_SUSPICION=__SA_SUSPICION+3 end
-  env[key] = nil
-end)
-
 -- Block if suspicion is high
-if __SA_SUSPICION >= 10 then return nil end
+if __SA_SUSPICION >= 5 then return nil end
 
--- Function integrity check
-local ${hcVar} = function()
-  local ${intVar} = true
-  local ${spyVar} = {}
+local ${hookCheckVar} = function()
+  local ${integrityVar} = true
+  local ${spyScanVar} = {}
   
-  local ${renvVar} = getrenv and getrenv() or _G
-  local ${olsVar} = ${renvVar}.loadstring or loadstring
+  local ${realEnvVar} = getrenv and getrenv() or _G
+  local ${originalLsVar} = ${realEnvVar}.loadstring or loadstring
   
-  -- rawequal checks
   if rawequal then
-    if not rawequal(${olsVar}, loadstring) then
-      ${spyVar}["loadstring_hooked"] = true; ${intVar} = false
+    if not rawequal(${originalLsVar}, loadstring) then
+      ${spyScanVar}["loadstring_hooked"] = true
+      ${integrityVar} = false
     end
     local httpGet = game.HttpGet
     if not rawequal(httpGet, game.HttpGet) then
-      ${spyVar}["httpget_hooked"] = true; ${intVar} = false
+      ${spyScanVar}["httpget_hooked"] = true
+      ${integrityVar} = false
     end
   end
   
-  -- SimpleSpy
-  for _, p in ipairs({"_G.SimpleSpy","_G.SimpleSpyExecuted","SimpleSpy.GetRemotes"}) do
+  -- SimpleSpy Detection
+  local simpleSpyPatterns = {"_G.SimpleSpy","_G.SimpleSpyExecuted","SimpleSpy.GetRemotes","ss.GetRemotes","_G.SS"}
+  for _, pattern in ipairs(simpleSpyPatterns) do
     local parts = {}
-    for part in string.gmatch(p, "[^%.]+") do table.insert(parts, part) end
+    for part in string.gmatch(pattern, "[^%.]+") do table.insert(parts, part) end
     local obj = _G
     local found = true
     for _, part in ipairs(parts) do
-      if type(obj)=="table" and obj[part]~=nil then obj=obj[part] else found=false break end
+      if type(obj) == "table" and obj[part] ~= nil then obj = obj[part] else found = false break end
     end
-    if found then ${spyVar}["simplespy"]=true; ${intVar}=false; break end
+    if found then ${spyScanVar}["simplespy"] = true ${integrityVar} = false break end
   end
   
-  -- Hydroxide/Dex
+  -- Hydroxide Detection
   pcall(function()
-    local cg = game:GetService("CoreGui")
-    if cg:FindFirstChild("Hydroxide") or cg:FindFirstChild("HydroxideUI") then
-      ${spyVar}["hydroxide"]=true; ${intVar}=false
+    local coreGui = game:GetService("CoreGui")
+    if coreGui:FindFirstChild("Hydroxide") or coreGui:FindFirstChild("HydroxideUI") then
+      ${spyScanVar}["hydroxide_ui"] = true
+      ${integrityVar} = false
     end
-    for _, child in ipairs(cg:GetChildren()) do
+  end)
+  
+  -- Dex Explorer Detection
+  pcall(function()
+    local coreGui = game:GetService("CoreGui")
+    for _, child in ipairs(coreGui:GetChildren()) do
       local name = child.Name:lower()
       if name:find("dex") or name:find("explorer") then
-        ${spyVar}["dex"]=true; ${intVar}=false
+        ${spyScanVar}["dex_ui"] = true
+        ${integrityVar} = false
       end
     end
   end)
   
-  -- isfunctionhooked (Luarmor technique)
+  -- Remote Spy Detection
+  for _, pattern in ipairs({"RemoteSpy","_G.RemoteSpy","RSconnections"}) do
+    pcall(function()
+      if _G[pattern] ~= nil then ${spyScanVar}["remotespy"] = true ${integrityVar} = false end
+    end)
+  end
+  
+  -- isfunctionhooked checks
   pcall(function()
     if isfunctionhooked then
-      if request and isfunctionhooked(request) then
-        ${spyVar}["request_hooked"]=true; ${intVar}=false
+      if http and http.request and isfunctionhooked(http.request) then
+        ${spyScanVar}["http_hooked"] = true ${integrityVar} = false
       end
+      if request and isfunctionhooked(request) then
+        ${spyScanVar}["request_hooked"] = true ${integrityVar} = false
+      end
+      -- Luarmor technique: hookfunction consistency test
       if hookfunction then
-        local tf = function() end
-        if isfunctionhooked(tf) then
-          ${spyVar}["new_fn_hooked"]=true; ${intVar}=false
+        local _tf = function() end
+        if isfunctionhooked(_tf) then
+          ${spyScanVar}["new_fn_hooked"] = true ${integrityVar} = false
         end
-        hookfunction(tf, function() end)
-        if not isfunctionhooked(tf) then
-          ${spyVar}["hook_inconsistent"]=true; ${intVar}=false
+        hookfunction(_tf, function() end)
+        if not isfunctionhooked(_tf) then
+          ${spyScanVar}["hook_inconsistent"] = true ${integrityVar} = false
         end
       end
     end
   end)
   
-  return ${intVar}, ${spyVar}
+  return ${integrityVar}, ${spyScanVar}
 end
 
-local __SA_INTEGRITY, __SA_SPY_DETECTED = ${hcVar}()
+local __SA_INTEGRITY, __SA_SPY_DETECTED = ${hookCheckVar}()
 
 if not __SA_INTEGRITY then
   pcall(function()
     local detected = {}
-    for k,v in pairs(__SA_SPY_DETECTED) do if v then table.insert(detected, k) end end
+    for k, v in pairs(__SA_SPY_DETECTED) do if v then table.insert(detected, k) end end
     spawn(function()
       pcall(function()
         game:HttpGet("__REPORT_URL__?type=hook_detected&tools=" .. table.concat(detected, ","))
@@ -953,22 +417,227 @@ end
 _G.__SA_ANTI_HOOK = {
   integrity = __SA_INTEGRITY,
   detected = __SA_SPY_DETECTED,
-  check = ${hcVar},
+  check = ${hookCheckVar},
   realLoadstring = (getrenv and getrenv() or _G).loadstring or loadstring,
   hbCount = __SA_HB_COUNT,
-  suspicion = __SA_SUSPICION,
-  execId = _SA_EXEC_ID,
-  tblAcc = _SA_TBL_ACC,
 }
 `;
 }
 
-// PRNG string encryption (kept for compatibility but simplified)
-export function generatePRNGStringEncryption(): string {
-  return '';  // Integrated into custom encoding
+// Compact anti-env-log check for Layer 1
+export function generateCompactAntiEnvCheck(): string {
+  const methodName = generateRandomVarName(14);
+  
+  return `do local _hc=0;local _cn;pcall(function()_cn=game:GetService("RunService").Heartbeat:Connect(function()_hc=_hc+1 end)end)if _cn then repeat task.wait()until _hc>=2;pcall(function()_cn:Disconnect()end)end end;do local _s=0;pcall(function()if getmetatable(require)then _s=_s+1 end;if getmetatable(print)then _s=_s+1 end end);pcall(function()local _io=pcall(function()Instance.new("Part"):${methodName}("a")end)if _io then _s=_s+3 end end);pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("sandbox")or _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("25ms")then _s=_s+3 end end);pcall(function()local _,_m=pcall(function()game()end)if _m and not tostring(_m):find("attempt to call a Instance value")then _s=_s+2 end end);if _s>=3 then return nil end end;`;
 }
 
-// Anti-env-log check (alias)
+// Luarmor-style advanced anti-env-log check for Layer 2 (scoring system)
+export function generateLuarmorStyleAntiEnvLog(): string {
+  const methodName = generateRandomVarName(14);
+  const gKey = generateRandomVarName(10);
+  const gVal = generateRandomVarName(8);
+  const flagVar = generateRandomVarName(8);
+  
+  return `
+-- ShadowAuth Anti-Environment Logger V6.0 (Luarmor Enhanced)
+-- Scoring system + table identity + stack depth anti-debug
+do
+  local _suspicion = 0
+  
+  -- Heartbeat timing (ensures real Roblox runtime)
+  pcall(function()
+    local _hbCnt = 0
+    local _hbC = game:GetService("RunService").Heartbeat:Connect(function() _hbCnt = _hbCnt + 1 end)
+    repeat task.wait() until _hbCnt >= 2
+    if _hbC then _hbC:Disconnect() end
+  end)
+  
+  -- TABLE IDENTITY CHECK (Luarmor v85)
+  -- Env loggers serialize/deserialize tables, breaking identity
+  pcall(function()
+    local _t1, _t2, _t3 = {}, {}, {}
+    for _n = 1, 13 do
+      local _k, _v = {}, {}
+      _t1[_k] = _v; _t2[_v] = _n; _t3[_k] = _v
+    end
+    local _match = 0
+    for _k, _v in next, _t1 do
+      if _t3[_k] == _v then _match = _match + 1 end
+    end
+    if _match ~= 13 then _suspicion = _suspicion + 5 end
+  end)
+  
+  -- STACK DEPTH ANTI-DEBUG (Luarmor v92)
+  -- Temporarily replaces tostring/print/error with traps
+  pcall(function()
+    local ${flagVar} = false
+    local _obj = setmetatable({}, {__tostring = function() ${flagVar} = true; return (" "):rep(16777215) end})
+    local _funcs = {setmetatable, string.char, string.sub, string.byte, os.time, loadstring, pcall}
+    for _, _f in next, _funcs do
+      local _op, _oe, _opr = print, tostring, error
+      local _env = getfenv()
+      local function _trap() ${flagVar} = true; return (" "):rep(16777215) end
+      _env.tostring = _trap; _env.error = _trap; _env.print = _trap
+      pcall(_f, _obj)
+      _env.tostring = _oe; _env.print = _op; _env.error = _opr
+    end
+    if ${flagVar} then _suspicion = _suspicion + 4 end
+  end)
+  
+  -- HIGH CONFIDENCE: Metatable on core functions
+  pcall(function()
+    if getmetatable(require) then _suspicion = _suspicion + 3 end
+    if getmetatable(print) then _suspicion = _suspicion + 3 end
+    if getmetatable(error) then _suspicion = _suspicion + 2 end
+  end)
+  
+  -- HIGH CONFIDENCE: Instance method must error
+  pcall(function()
+    local _imOk = pcall(function()
+      Instance.new("Part"):${methodName}("a")
+    end)
+    if _imOk then _suspicion = _suspicion + 5 end
+  end)
+  
+  -- HIGH CONFIDENCE: debug.traceback sandbox strings
+  pcall(function()
+    local _tb = (debug.traceback() or ""):lower()
+    if _tb:find("sandbox") or _tb:find("unveilr") or _tb:find("httpspy") or _tb:find("envlog") or _tb:find("crypta") or _tb:find("25ms") or _tb:find("threaded") then
+      _suspicion = _suspicion + 5
+    end
+  end)
+  
+  -- HIGH CONFIDENCE: game() error message validation
+  pcall(function()
+    local _, _msg = pcall(function() game() end)
+    if _msg and not tostring(_msg):find("attempt to call a Instance value") then
+      _suspicion = _suspicion + 3
+    end
+  end)
+  
+  -- MEDIUM CONFIDENCE: Env logger variable probes
+  pcall(function()
+    local fenv = getfenv()
+    local envLoggerVars = {
+      "superflow_bytecode_ext0", "env_log", "_env_hook", 
+      "script_spy", "remote_spy_hook", "_25mspredefine"
+    }
+    for _, varName in ipairs(envLoggerVars) do
+      if fenv[varName] ~= nil or rawget(_G, varName) ~= nil then 
+        _suspicion = _suspicion + 4
+        break
+      end
+    end
+  end)
+  
+  -- MEDIUM CONFIDENCE: JSONDecode null handling
+  pcall(function()
+    local _jOk, _jRes = pcall(function()
+      return game:GetService("HttpService"):JSONDecode('[42,"t",true,123,false,[321,null,"chk"],null]')
+    end)
+    if _jOk and _jRes and _jRes[6] and _jRes[6][2] ~= nil then
+      _suspicion = _suspicion + 2
+    end
+  end)
+  
+  -- LOW CONFIDENCE: debug.info C function checks
+  pcall(function()
+    if debug and debug.info then
+      local function _cChk(f)
+        local ok, src = pcall(debug.info, f, "s")
+        return not ok or src == "[C]"
+      end
+      if not _cChk(print) then _suspicion = _suspicion + 1 end
+      if not _cChk(require) then _suspicion = _suspicion + 1 end
+      local _tf = function() end
+      local _to, _ts = pcall(debug.info, _tf, "s")
+      if _to and _ts == "[C]" then _suspicion = _suspicion + 2 end
+    end
+  end)
+  
+  -- LOW CONFIDENCE: game:GetChildren count
+  pcall(function()
+    if #game:GetChildren() <= 4 then _suspicion = _suspicion + 2 end
+  end)
+  
+  -- LOW CONFIDENCE: _G → getfenv leak
+  pcall(function()
+    _G.${gKey} = "${gVal}"
+    local _leaked = getfenv().${gKey} ~= nil
+    _G.${gKey} = nil
+    if _leaked then _suspicion = _suspicion + 2 end
+  end)
+  
+  -- isfunctionhooked + hookfunction consistency (Luarmor technique)
+  pcall(function()
+    if isfunctionhooked then
+      if http and http.request and isfunctionhooked(http.request) then _suspicion = _suspicion + 3 end
+      if request and isfunctionhooked(request) then _suspicion = _suspicion + 3 end
+      if hookfunction then
+        local _tf = function() end
+        if isfunctionhooked(_tf) then _suspicion = _suspicion + 3 end
+        hookfunction(_tf, function() end)
+        if not isfunctionhooked(_tf) then _suspicion = _suspicion + 3 end
+      end
+    end
+  end)
+  
+  -- BLOCK: Score >= 5
+  if _suspicion >= 5 then return nil end
+end
+`;
+}
+
+// Generate anti-env-log check (backward compat)
 export function generateAntiEnvLogCheck(): string {
   return generateCompactAntiEnvCheck();
+}
+
+// Generate integrity verification code for the loader
+export function generateIntegrityCheck(reportUrl: string): string {
+  const code = generateAntiHookCode();
+  return code.replace(/__REPORT_URL__/g, reportUrl);
+}
+
+// Generate Luarmor-style rawequal loadstring wrapper
+export function generateSafeLoadstring(): string {
+  return `
+-- ShadowAuth Safe Loadstring v2.1
+local _SA_LOADSTRING
+do
+  local _realLS = nil
+  local _isHooked = false
+  local function tryGetLoadstring()
+    if getrenv then
+      local ok, renv = pcall(getrenv)
+      if ok and renv and type(renv) == "table" and renv.loadstring then return renv.loadstring, "getrenv" end
+    end
+    if getgenv then
+      local ok, genv = pcall(getgenv)
+      if ok and genv and type(genv) == "table" and genv.loadstring then return genv.loadstring, "getgenv" end
+    end
+    if _G and _G.loadstring then return _G.loadstring, "_G" end
+    if loadstring then return loadstring, "direct" end
+    return nil, "none"
+  end
+  _realLS, _source = tryGetLoadstring()
+  if not _realLS then error("[ShadowAuth] No loadstring available in this executor") end
+  if rawequal and loadstring then
+    if not rawequal(_realLS, loadstring) then _isHooked = true end
+  end
+  _SA_LOADSTRING = function(code)
+    if not code or type(code) ~= "string" then return nil, "Invalid code" end
+    local ok, result = pcall(_realLS, code)
+    if ok then return result else
+      for _, method in ipairs({loadstring, _G.loadstring}) do
+        if method and method ~= _realLS then
+          local ok2, result2 = pcall(method, code)
+          if ok2 then return result2 end
+        end
+      end
+      return nil, result
+    end
+  end
+end
+`;
 }
