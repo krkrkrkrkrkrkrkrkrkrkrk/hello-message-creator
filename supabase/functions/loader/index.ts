@@ -36,12 +36,7 @@ import {
 } from "../_shared/shared-utils.ts";
 import { generateLuaNodeSelector } from "../_shared/cdn-nodes.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shadow-sig, x-shadow-key, x-shadow-hwid",
-  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-  "Pragma": "no-cache",
-};
+// corsHeaders imported from shared-utils (single source of truth)
 
 // Browser "no access" page
 const unauthorizedHTML = `<!DOCTYPE html>
