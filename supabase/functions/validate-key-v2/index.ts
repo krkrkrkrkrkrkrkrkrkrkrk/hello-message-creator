@@ -25,11 +25,23 @@ import {
 // isExecutor, hashHWID, fastHash32, generateSalt, xorEncrypt all imported from shared-utils
 
 function obfuscateLua(code: string, keyId: string): string {
-  // Use steganographic watermark instead of comment-based (cannot be stripped by regex)
   return steganographicWatermark(code, keyId);
 }
 
-// xorEncrypt, generateSalt, hashHWID, fastHash32 all imported from shared-utils
+// Missing declarations needed by this file
+const rateLimit = new Map<string, number>();
+
+function isFloat(n: number): boolean {
+  return n !== Math.floor(n);
+}
+
+function transformRNG1(v: number): number {
+  return Math.floor(v * 1000000) ^ 0xA5A5A5;
+}
+
+function transformRNG2(v: number): number {
+  return (v ^ 0x5A5A5A) + 42;
+}
 
 serve(async (req) => {
   const startTime = Date.now();

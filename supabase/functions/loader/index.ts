@@ -774,7 +774,8 @@ serve(async (req) => {
 
       // Generate + Luraph + cache
       const raw = generator();
-      const protected_ = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
+      const luraphResult = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
+      const protected_ = luraphResult.code;
       loaderCache.set(ck, { code: protected_, timestamp: Date.now() });
       await upsertBuild(num, protected_);
 

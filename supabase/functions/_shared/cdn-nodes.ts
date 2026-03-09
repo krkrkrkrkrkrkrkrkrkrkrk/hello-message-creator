@@ -117,24 +117,26 @@ function weightedRandom(pool: CDNNode[]): CDNNode {
 export function generateLuaNodeSelector(supabaseUrl: string): string {
   return `
 -- ShadowAuth CDN Node Selection (Luarmor-identical timezone algo)
+-- Region tag is passed as query param for analytics + edge routing hints
 local _SA_NODE = "${supabaseUrl}/functions/v1"
+local _SA_REGION = "us"
 do
   local _tz = os.time(os.date("*t")) - os.time(os.date("!*t"))
   if _tz < 0 then _tz = (86400 + -(-_tz % 86400)) % 86400 else _tz = _tz % 86400 end
   local _h = _tz / 3600
-  -- Node selection is cosmetic for edge functions (all route to Deno Deploy CDN)
-  -- but the algorithm matches Luarmor for behavioral fingerprint consistency
   if _h >= 21 or _h < 5 then
-    _SA_NODE = "${supabaseUrl}/functions/v1" -- EU hours
+    _SA_REGION = "eu"
   elseif _h >= 5 and _h < 15 then
-    _SA_NODE = "${supabaseUrl}/functions/v1" -- Asia hours
+    _SA_REGION = "as"
   else
-    _SA_NODE = "${supabaseUrl}/functions/v1" -- US hours
+    _SA_REGION = "us"
   end
   pcall(function()
-    if game:GetService("LocalizationService"):GetCountryRegionForPlayerAsync(game:GetService("Players").LocalPlayer) == "AU" then
-      _SA_NODE = "${supabaseUrl}/functions/v1" -- AU override
-    end
+    local loc = game:GetService("LocalizationService")
+    local region = loc:GetCountryRegionForPlayerAsync(game:GetService("Players").LocalPlayer)
+    if region == "AU" or region == "NZ" then _SA_REGION = "au"
+    elseif region == "BR" or region == "AR" then _SA_REGION = "sa"
+    elseif region == "JP" or region == "KR" or region == "CN" then _SA_REGION = "as" end
   end)
 end
 `;
