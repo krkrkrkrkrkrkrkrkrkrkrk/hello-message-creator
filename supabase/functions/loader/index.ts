@@ -720,13 +720,39 @@ local ${funcName} = function()
           code = table.concat(dec)
         end
         
+        local loadedHash = _SA_FASTHASH(code)
+        if data.script_hash and loadedHash ~= tostring(data.script_hash) then
+          updateStatus("❌ Hash mismatch", Color3.fromRGB(255,100,100))
+          task.wait(1.5); closeGui(false); return
+        end
+
         local fn = _SA_LOADSTRING(code)
         if fn then
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
           task.wait(0.5)
           closeGui(true)
           _G.__SA = true
+
+          -- Post-auth continuous monitor (clock freeze + env tamper)
+          task.spawn(function()
+            local baseClock = os.clock()
+            while task.wait(0.18) do
+              if (os.clock() - baseClock) > 12 then break end
+              if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then return end
+              if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then return end
+              if _SA_TBL_ACC == -1 then return end
+            end
+          end)
+
+          -- Anti-dump hardening
+          pcall(function()
+            if string and string.dump then
+              string.dump = function() return nil end
+            end
+          end)
+
           fn()
+          code = nil
         else
           updateStatus("❌ Failed to load", Color3.fromRGB(255,100,100))
           task.wait(1.5); closeGui(false)
