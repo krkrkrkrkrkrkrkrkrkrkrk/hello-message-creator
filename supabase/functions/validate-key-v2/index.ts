@@ -490,7 +490,8 @@ serve(async (req) => {
       seconds_left: keyData.expires_at 
         ? Math.max(0, Math.floor((new Date(keyData.expires_at).getTime() - Date.now()) / 1000))
         : null,
-      session_token: sessionToken
+      session_token: sessionToken,
+      dk: derivedKey
     };
     
     // Add script payload based on delivery mode

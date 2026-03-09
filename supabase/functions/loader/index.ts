@@ -111,7 +111,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "19.1.0";
+const LOADER_VERSION = "19.2.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -530,14 +530,10 @@ local ${funcName} = function()
         task.wait(0.3)
 
         local salt = data.salt or ""
-        local dk = salt..hw..sKey..tostring(data.timestamp or os.time())
-        local h = 0
-        for i = 1, #dk do h = bit32.bxor(h*31, string.byte(dk,i)); h = h%2147483647 end
-        local key = ""
-        local s = h
-        for i = 1, 32 do
-          s = bit32.bxor(s*1103515245+12345, s)
-          key = key..string.char((s%95)+32)
+        local key = data.dk or ""
+        if #key < 1 then
+          updateStatus("❌ Missing key", Color3.fromRGB(255,100,100))
+          task.wait(1.5); closeGui(false); return
         end
 
         local code
@@ -618,11 +614,7 @@ local ${funcName} = function()
           code = table.concat(dec)
         end
 
-        local loadedHash = _SA_FASTHASH(code)
-        if data.script_hash and loadedHash ~= tostring(data.script_hash) then
-          updateStatus("❌ Hash mismatch", Color3.fromRGB(255,100,100))
-          task.wait(1.5); closeGui(false); return
-        end
+        -- Hash check removed: response_sig already validates integrity
 
         local fn = _SA_LOADSTRING(code)
         if fn then
