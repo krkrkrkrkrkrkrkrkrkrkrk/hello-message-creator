@@ -31,17 +31,14 @@ import {
   isLikelyExecutorRequest,
   generateRandomVarName,
   generateScriptHash,
+  generateSalt,
   obfuscateWithLuraph,
   generateLuaDecryptor,
+  getClientIP,
 } from "../_shared/shared-utils.ts";
 import { generateLuaNodeSelector } from "../_shared/cdn-nodes.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shadow-sig, x-shadow-key, x-shadow-hwid",
-  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-  "Pragma": "no-cache",
-};
+// corsHeaders imported from shared-utils (single source of truth)
 
 // Browser "no access" page
 const unauthorizedHTML = `<!DOCTYPE html>
@@ -117,117 +114,11 @@ function unauthorizedResponse(req: Request): Response {
   return new Response("Unauthorized", { status: 401, headers: { ...corsHeaders, "Content-Type": "text/plain" } });
 }
 
-function isExecutor(ua: string): boolean {
-  const p = [/synapse/i,/krnl/i,/fluxus/i,/electron/i,/oxygen/i,/sentinel/i,/celery/i,/arceus/i,/roblox/i,/comet/i,/trigon/i,/delta/i,/hydrogen/i,/evon/i,/vegax/i,/jjsploit/i,/nihon/i,/zorara/i,/solara/i,/wave/i,/script-?ware/i,/wininet/i,/winhttp/i,/httpget/i,/exploiter/i,/macsploit/i,/calamari/i,/sirhurt/i,/protosmasher/i,/xeno/i,/codex/i,/nezur/i,/ro-?exec/i];
-  return p.some(r => r.test(ua));
-}
-
-function isLikelyExecutorRequest(req: Request): boolean {
-  const accept = (req.headers.get("accept") || "").toLowerCase();
-  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
-  if (!accept || accept === "*/*" || accept === "") {
-    if (secFetchDest !== "document" && !accept.includes("text/html")) return true;
-  }
-  return false;
-}
+// isExecutor & isLikelyExecutorRequest imported from shared-utils
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
 const LOADER_VERSION = "18.0.0";
-const ENABLE_LURAPH = true;
-const LURAPH_API_URL = "https://api.lura.ph/v1";
-
-function base64EncodeScript(str: string): string {
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(str);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-class LuraphClient {
-  private apiKey: string;
-  constructor(apiKey: string) { this.apiKey = apiKey; }
-
-  private async request(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const headers = new Headers(options.headers || {});
-    headers.set('Luraph-API-Key', this.apiKey);
-    headers.set('Content-Type', 'application/json');
-    return fetch(`${LURAPH_API_URL}${endpoint}`, { ...options, headers });
-  }
-
-  async obfuscate(script: string, fileName: string = 'loader.lua'): Promise<string> {
-    const nodesResp = await this.request('/obfuscate/nodes');
-    if (!nodesResp.ok) throw new Error(`Luraph nodes error: ${nodesResp.status}`);
-    const nodes = await nodesResp.json();
-    const nodeId = nodes.recommendedId;
-    if (!nodeId) throw new Error('No Luraph nodes');
-
-    const submitResp = await this.request('/obfuscate/new', {
-      method: 'POST',
-      body: JSON.stringify({
-        fileName, node: nodeId,
-        script: base64EncodeScript(script),
-        options: {
-          TARGET_VERSION: "Luau", DISABLE_LINE_INFORMATION: true,
-          CONSTANT_ENCRYPTION: true, CONTROL_FLOW: true,
-          VM_ENCRYPTION: true, STRING_ENCRYPTION: true,
-        },
-        enforceSettings: false,
-      }),
-    });
-    if (!submitResp.ok) throw new Error(`Luraph submit: ${await submitResp.text()}`);
-    const { jobId } = await submitResp.json();
-
-    const start = Date.now();
-    while (Date.now() - start < 90000) {
-      const status = await this.request(`/obfuscate/status/${jobId}`);
-      if (status.ok) break;
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    const dlResp = await this.request(`/obfuscate/download/${jobId}`);
-    if (!dlResp.ok) throw new Error(`Luraph download: ${dlResp.status}`);
-    return dlResp.text();
-  }
-}
-
-async function obfuscateWithLuraph(code: string, layerName: string): Promise<string> {
-  const key = Deno.env.get("LURAPH_API_KEY");
-  if (!key || !ENABLE_LURAPH) return code;
-  try {
-    console.log(`Luraph: ${layerName}...`);
-    const result = await new LuraphClient(key).obfuscate(code, `${layerName}.lua`);
-    console.log(`Luraph: ${layerName} OK`);
-    return result;
-  } catch (err) {
-    console.error(`Luraph failed ${layerName}:`, err);
-    return code;
-  }
-}
-
-function generateRandomVarName(length: number = 8): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-  const nums = '0123456789';
-  let result = chars[Math.floor(Math.random() * chars.length)];
-  for (let i = 1; i < length; i++) result += (chars + nums)[Math.floor(Math.random() * (chars.length + nums.length))];
-  return result;
-}
-
-function generateSalt(scriptId: string, clientIP: string): string {
-  const combined = `${scriptId}:${clientIP}:${Date.now()}:shadowauth_v${LOADER_VERSION}`;
-  let hash = 0;
-  for (let i = 0; i < combined.length; i++) {
-    hash = ((hash << 5) - hash) + combined.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36) + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
-}
-
-async function generateScriptHash(content: string): Promise<string> {
-  const data = new TextEncoder().encode(content);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("").substring(0, 32);
-}
+// obfuscateWithLuraph, generateRandomVarName, generateSalt, generateScriptHash all from shared-utils
 
 function generateBinaryDataBlob(): { escapedKey: string; escapedSalt: string; signature: string } {
   const keyBytes: number[] = [];
@@ -836,7 +727,7 @@ serve(async (req) => {
 
     const initVersion = (vParam?.trim()) || await generateScriptHash(script.content);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const sessionSalt = generateSalt(scriptId, clientIP);
+    const sessionSalt = generateSalt(scriptId, clientIP, Date.now());
 
     console.log(`Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0,8)}..., IP: ${clientIP}`);
 
@@ -885,7 +776,8 @@ serve(async (req) => {
 
       // Generate + Luraph + cache
       const raw = generator();
-      const protected_ = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
+      const luraphResult = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
+      const protected_ = luraphResult.code;
       loaderCache.set(ck, { code: protected_, timestamp: Date.now() });
       await upsertBuild(num, protected_);
 
