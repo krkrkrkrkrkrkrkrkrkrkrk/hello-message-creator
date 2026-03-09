@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
 import {
   generateAntiHookCode,
   generateSafeLoadstring,
-  generateEscapeSequences,
   generateCompactAntiEnvCheck,
   generateLuarmorStyleAntiEnvLog,
   generateTutorialStateHWID,
@@ -23,8 +22,7 @@ import {
   generateCrashFunction,
   generateWebSocketClient,
 } from "../_shared/anti-hook-detection.ts";
-import { splitIntoEncryptedChunks, signScript, encodeAsEscapeSequences, timingSafeEqual } from "../_shared/chunk-encryption.ts";
-import { checkRateLimit, isBlacklisted, addToBlacklist } from "../_shared/deno-kv-store.ts";
+import { checkRateLimit, isBlacklisted } from "../_shared/deno-kv-store.ts";
 import {
   corsHeaders,
   isExecutor,
@@ -33,14 +31,12 @@ import {
   generateScriptHash,
   generateSalt,
   obfuscateWithLuraph,
-  generateLuaDecryptor,
   getClientIP,
 } from "../_shared/shared-utils.ts";
-import { generateLuaNodeSelector } from "../_shared/cdn-nodes.ts";
 
-// corsHeaders imported from shared-utils (single source of truth)
-
-// Browser "no access" page
+// =====================================================
+// BROWSER "NO ACCESS" PAGE
+// =====================================================
 const unauthorizedHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,140 +110,134 @@ function unauthorizedResponse(req: Request): Response {
   return new Response("Unauthorized", { status: 401, headers: { ...corsHeaders, "Content-Type": "text/plain" } });
 }
 
-// isExecutor & isLikelyExecutorRequest imported from shared-utils
-
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "18.0.0";
-// obfuscateWithLuraph, generateRandomVarName, generateSalt, generateScriptHash all from shared-utils
+const LOADER_VERSION = "19.0.0";
 
-function generateBinaryDataBlob(): { escapedKey: string; escapedSalt: string; signature: string } {
-  const keyBytes: number[] = [];
-  for (let i = 0; i < 21; i++) keyBytes.push(Math.floor(Math.random() * 200) + 32);
-  const saltBytes: number[] = [];
-  for (let i = 0; i < 24; i++) saltBytes.push(Math.floor(Math.random() * 200) + 32);
-  const sigChars = 'ABCDEFRL0123456789._-';
-  let signature = '';
-  for (let i = 0; i < 80; i++) signature += sigChars[Math.floor(Math.random() * sigChars.length)];
-  return {
-    escapedKey: keyBytes.map(b => `\\${b}`).join(''),
-    escapedSalt: saltBytes.map(b => `\\${b}`).join(''),
-    signature,
+// =====================================================
+// PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
+// Encrypts all string literals server-side, embeds decryptor in output
+// =====================================================
+function generatePRNGStringEncryptor(): { encrypt: (str: string, id: number) => string; decryptorCode: string } {
+  // Build shuffled byte-to-char mapping (Luarmor v57)
+  const indices = Array.from({ length: 256 }, (_, i) => i + 1);
+  const mapping: Record<number, string> = {};
+  while (indices.length > 0) {
+    const idx = Math.floor(Math.random() * indices.length);
+    const val = indices.splice(idx, 1)[0];
+    mapping[val] = String.fromCharCode(val - 1);
+  }
+
+  // Serialize the mapping for Lua
+  const mapEntries = Object.entries(mapping)
+    .map(([k, v]) => {
+      const charCode = v.charCodeAt(0);
+      return `[${k}]="\\${charCode}"`;
+    })
+    .join(",");
+
+  const encrypt = (str: string, id: number): string => {
+    // PRNG state from Luarmor v76
+    let seed = id % 35184372088832;
+    let mult = (id % 255) + 2;
+    const buffer: number[] = [];
+
+    const nextByte = (): number => {
+      if (buffer.length === 0) {
+        seed = (seed * 169 + 7579774851987) % 35184372088832;
+        do { mult = (mult * 27) % 257; } while (mult === 1);
+        const shift = mult % 32;
+        const raw = Math.floor(seed / Math.pow(2, 13 - (mult - shift) / 32)) % 4294967296 / Math.pow(2, shift);
+        const combined = Math.floor(raw % 1 * 4294967296) + Math.floor(raw);
+        const lo = combined % 65536;
+        const hi = (combined - lo) / 65536;
+        const b0 = lo % 256;
+        const b1 = (lo - b0) / 256;
+        const b2 = hi % 256;
+        buffer.push(b0, b1, b2, (hi - b2) / 256);
+      }
+      return buffer.shift()!;
+    };
+
+    let result = "";
+    let carry = 180;
+    for (let i = 0; i < str.length; i++) {
+      const encrypted = (str.charCodeAt(i) + nextByte() + carry) % 256;
+      carry = encrypted;
+      const mapped = mapping[encrypted + 1];
+      if (mapped !== undefined) {
+        result += mapped;
+      } else {
+        result += String.fromCharCode(encrypted);
+      }
+    }
+    return result;
   };
-}
 
-// =====================================================
-// LAYER 1: Ultra-Compact Bootstrap (Luarmor-identical ~4 lines)
-// =====================================================
-function generateLayer1(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const blob = generateBinaryDataBlob();
-  const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
-  const antiEnv = generateCompactAntiEnvCheck();
-  const headerData = Array.from({length: 4}, () => Math.floor(Math.random() * 4294967295));
-
-  return `${antiEnv}
-_bd0={${headerData.join(',')},"${blob.escapedKey}",${Math.floor(Math.random()*99999999)},"${blob.escapedSalt}","${blob.signature}"};
-local f,b="${cacheFolder}","${initVersion}";local a;pcall(function()a=readfile(f.."/i-"..b..".lua")end) if a and #a>2000 then a=loadstring(a) else a=nil end;
-if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
-pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(i[%w%-]*).lua$')if m and m~=('i-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=loadstring(a);if fn then return fn() else warn("[ShadowAuth] Layer 2 loadstring failed: "..tostring(lerr)) end end`;
-}
-
-// =====================================================
-// LAYER 2: Bootstrapper with anti-env scoring
-// =====================================================
-function generateLayer2(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
-  const esc = generateEscapeSequences(16);
-
-  return `--[[ ShadowAuth V18 bootstrapper. Escape: ${esc} ]]
-
-${generateLuarmorStyleAntiEnvLog()}
-
-${generateSafeLoadstring()}
-
-local _CF = "${cacheFolder}"
-local _IV = "${initVersion}"
-
-local function _rc(n)
-  local ok,d = pcall(function() if readfile then return readfile(_CF.."/"..n) end end)
-  if ok and d and #d>100 then return d end
+  const decryptorCode = `
+local _SA_STR_MAP = {${mapEntries}}
+local _SA_STR_CACHE = {}
+local _SA_STR_BUF = {}
+local _SA_STR_SEED = 0
+local _SA_STR_MULT = 2
+local function _SA_STR_NEXT()
+  if #_SA_STR_BUF == 0 then
+    _SA_STR_SEED = (_SA_STR_SEED * 169 + 7579774851987) % 35184372088832
+    repeat _SA_STR_MULT = _SA_STR_MULT * 27 % 257 until _SA_STR_MULT ~= 1
+    local sh = _SA_STR_MULT % 32
+    local raw = math.floor(_SA_STR_SEED / 2^(13-(_SA_STR_MULT-sh)/32)) % 4294967296 / 2^sh
+    local combined = math.floor(raw%1*4294967296) + math.floor(raw)
+    local lo = combined%65536
+    local hi = (combined-lo)/65536
+    local b0 = lo%256
+    local b1 = (lo-b0)/256
+    local b2 = hi%256
+    _SA_STR_BUF = {b0,b1,b2,(hi-b2)/256}
+  end
+  return table.remove(_SA_STR_BUF)
 end
-
-local function _wc(n,d)
-  pcall(function() if makefolder then makefolder(_CF) end; if writefile then writefile(_CF.."/"..n,d) end end)
+local function _SA_D(data, id)
+  if _SA_STR_CACHE[id] then return id end
+  _SA_STR_BUF = {}
+  _SA_STR_SEED = id % 35184372088832
+  _SA_STR_MULT = id % 255 + 2
+  local result = ""
+  local carry = 180
+  for i = 1, #data do
+    local byte = (string.byte(data,i) + _SA_STR_NEXT() + carry) % 256
+    carry = byte
+    result = result .. (_SA_STR_MAP[byte+1] or string.char(byte))
+  end
+  _SA_STR_CACHE[id] = result
+  return id
 end
-
-local ok,c3 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=3&v=${initVersion}")
-end)
-
-if ok and c3 and #c3>100 then
-  _wc("l3-".._IV..".lua", c3)
-  local fn = _SA_LOADSTRING(c3)
-  if fn then return fn() end
-end
-
-return error("[ShadowAuth] Layer 3 unavailable")
 `;
+
+  return { encrypt, decryptorCode };
 }
 
 // =====================================================
-// LAYER 3: Anti-Hook Scanner (full Luarmor parity)
+// SINGLE-FETCH LOADER (Luarmor architecture)
+// One HTTP response contains ALL code. Only key validation is separate.
 // =====================================================
-function generateLayer3(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g,
-    `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`);
-
-  return `--[[ ShadowAuth Layer 3 - Anti-Hook V8.0 ]]
-
-${generateSafeLoadstring()}
-
-${antiHookCode}
-
-local ok,c4 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}")
-end)
-
-if ok and c4 and #c4>100 then
-  local fn = _SA_LOADSTRING(c4)
-  if fn then return fn() end
-end
-
-return error("[ShadowAuth] Layer 4 unavailable")
-`;
-}
-
-// =====================================================
-// LAYER 4: Bridge to Layer 5
-// =====================================================
-function generateLayer4(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  return `--[[ ShadowAuth Layer 4 ]]
-
-${generateSafeLoadstring()}
-
-local ok,c5 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=5&v=${initVersion}")
-end)
-
-if ok and c5 and #c5>100 then
-  local fn = _SA_LOADSTRING(c5)
-  if fn then return fn() end
-end
-
-return error("[ShadowAuth] Layer 5 unavailable")
-`;
-}
-
-// =====================================================
-// LAYER 5: Validation + GUI + Script Execution
-// All Luarmor techniques integrated directly
-// =====================================================
-function generateLayer5(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: string): string {
   const funcName = generateRandomVarName(12);
   const sessionSalt = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+  const reportUrl = `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`;
 
-  return `--[[ ShadowAuth Layer 5 - 3-Phase Handshake V9.0 (Luarmor-identical) ]]
+  // Anti-hook code with report URL injected
+  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g, reportUrl);
+
+  return `--[[ ShadowAuth V19 ]]
+local _SA_CLOCK = os.clock()
 
 ${generateSafeLoadstring()}
+${generateCompactAntiEnvCheck()}
+${generateLuarmorStyleAntiEnvLog()}
+
+-- ======= ANTI-HOOK SCANNER =======
+${antiHookCode}
+
+-- ======= SECURITY MODULES =======
 ${generateTutorialStateHWID()}
 ${generateExecutorIdentification()}
 ${generateHeartbeatCounter()}
@@ -265,15 +255,14 @@ ${generateRecursionDepthTest()}
 ${generateStackDepthAntiDebug()}
 ${generateRequestMetatableTrap()}
 
+-- ======= MAIN =======
 local ${funcName} = function()
   local Players = game:GetService("Players")
   local TweenService = game:GetService("TweenService")
   local H = game:GetService("HttpService")
   local P = Players.LocalPlayer
   local _SA_SHUTDOWN = false
-  local _SA_SESSION = nil
-  local _SA_HB_CREDIT = 5
-  
+
   -- GUI
   local gui, mainFrame, statusLabel, expiryLabel
   local function createGui()
@@ -282,14 +271,13 @@ local ${funcName} = function()
         game:GetService("CoreGui"):FindFirstChild("ShadowAuthLoader"):Destroy()
       end
     end)
-    
     gui = Instance.new("ScreenGui")
     gui.Name = "ShadowAuthLoader"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     pcall(function() gui.Parent = game:GetService("CoreGui") end)
     if not gui.Parent then gui.Parent = P:WaitForChild("PlayerGui") end
-    
+
     local blur = Instance.new("Frame")
     blur.Name = "Blur"
     blur.Size = UDim2.new(1,0,1,0)
@@ -297,7 +285,7 @@ local ${funcName} = function()
     blur.BackgroundTransparency = 0.4
     blur.BorderSizePixel = 0
     blur.Parent = gui
-    
+
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Card"
     mainFrame.Size = UDim2.new(0,320,0,160)
@@ -306,13 +294,12 @@ local ${funcName} = function()
     mainFrame.BackgroundTransparency = 0.15
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = gui
-    
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0,16)
     local stroke = Instance.new("UIStroke", mainFrame)
     stroke.Color = Color3.fromRGB(100,180,255)
     stroke.Transparency = 0.5
     stroke.Thickness = 1.5
-    
+
     local avatarFrame = Instance.new("Frame")
     avatarFrame.Size = UDim2.new(0,60,0,60)
     avatarFrame.Position = UDim2.new(0,20,0,20)
@@ -320,7 +307,7 @@ local ${funcName} = function()
     avatarFrame.BorderSizePixel = 0
     avatarFrame.Parent = mainFrame
     Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1,0)
-    
+
     local avatar = Instance.new("ImageLabel")
     avatar.Size = UDim2.new(1,-4,1,-4)
     avatar.Position = UDim2.new(0,2,0,2)
@@ -330,7 +317,7 @@ local ${funcName} = function()
     pcall(function()
       avatar.Image = Players:GetUserThumbnailAsync(P.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
     end)
-    
+
     local username = Instance.new("TextLabel")
     username.Size = UDim2.new(0,200,0,24)
     username.Position = UDim2.new(0,95,0,22)
@@ -341,7 +328,7 @@ local ${funcName} = function()
     username.TextXAlignment = Enum.TextXAlignment.Left
     username.Text = P.Name
     username.Parent = mainFrame
-    
+
     expiryLabel = Instance.new("TextLabel")
     expiryLabel.Size = UDim2.new(0,200,0,16)
     expiryLabel.Position = UDim2.new(0,95,0,48)
@@ -352,7 +339,7 @@ local ${funcName} = function()
     expiryLabel.TextXAlignment = Enum.TextXAlignment.Left
     expiryLabel.Text = "Validating..."
     expiryLabel.Parent = mainFrame
-    
+
     statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1,-40,0,30)
     statusLabel.Position = UDim2.new(0,20,1,-44)
@@ -363,7 +350,7 @@ local ${funcName} = function()
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
     statusLabel.Text = "⏳ Connecting..."
     statusLabel.Parent = mainFrame
-    
+
     local brand = Instance.new("TextLabel")
     brand.Size = UDim2.new(0,100,0,14)
     brand.Position = UDim2.new(1,-110,0,70)
@@ -374,13 +361,13 @@ local ${funcName} = function()
     brand.Text = "SHADOWAUTH"
     brand.TextXAlignment = Enum.TextXAlignment.Right
     brand.Parent = mainFrame
-    
+
     mainFrame.BackgroundTransparency = 1
     blur.BackgroundTransparency = 1
     TweenService:Create(blur, TweenInfo.new(0.3), {BackgroundTransparency=0.4}):Play()
     TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {BackgroundTransparency=0.15}):Play()
   end
-  
+
   local function updateStatus(text, color)
     if statusLabel then statusLabel.Text=text; if color then statusLabel.TextColor3=color end end
   end
@@ -402,7 +389,7 @@ local ${funcName} = function()
     if data.response_sig and data.response_sig ~= expected then return false end
     return true
   end
-  
+
   local function closeGui(success)
     if gui then
       local dur = success and 0.8 or 0.3
@@ -416,10 +403,14 @@ local ${funcName} = function()
       task.delay(dur+0.1, function() pcall(function() gui:Destroy() end) end)
     end
   end
-  
+
   pcall(createGui)
 
-  -- Service sanity check (anti-sandbox)
+  -- Timing: report how long init took
+  local _initTime = os.clock() - _SA_CLOCK
+  print("[ShadowAuth] Init: " .. string.format("%.3f", _initTime) .. "s")
+
+  -- Service sanity (anti-sandbox)
   local _saServiceOk = pcall(function()
     game:GetService("HttpService")
     game:GetService("RunService")
@@ -428,55 +419,43 @@ local ${funcName} = function()
   end)
   if not _saServiceOk then
     updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100))
-    task.wait(1.2)
-    closeGui(false)
-    return
+    task.wait(1.2); closeGui(false); return
   end
-  
-  -- Verify honeypots not tampered
+
+  -- Honeypot check
   if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
     updateStatus("❌ Integrity failure", Color3.fromRGB(255,100,100))
-    task.wait(1.5)
-    closeGui(false)
-    return
+    task.wait(1.5); closeGui(false); return
   end
-  
-  -- Verify getfenv key
+
+  -- getfenv key check
   pcall(function()
     if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then
       updateStatus("❌ Environment tampered", Color3.fromRGB(255,100,100))
-      task.wait(1.5)
-      closeGui(false)
-      return
+      task.wait(1.5); closeGui(false); return
     end
   end)
-  
-  -- Time check
+
   _SA_CHECK_TIME()
-  
+
   return function()
     if _G.__SA then
       updateStatus("✅ Already executed", Color3.fromRGB(100,220,150))
-      task.wait(0.2)
-      closeGui(true)
-      return
+      task.wait(0.2); closeGui(true); return
     end
 
     local K = script_key or (getgenv and getgenv().script_key)
     if not K then
       updateStatus("❌ No license key", Color3.fromRGB(255,100,100))
-      task.wait(1.5)
-      closeGui(false)
-      error("No license key")
-      return
+      task.wait(1.5); closeGui(false); error("No license key"); return
     end
-    
-    updateStatus("🔐 Validating key...", Color3.fromRGB(100,180,255))
-    
+
+    updateStatus("🔐 Validating...", Color3.fromRGB(100,180,255))
+
     local hw = gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId():gsub("-","")
     local tshw = _SA_TSHWID or "?"
     local sKey = "${sessionSalt}"
-    
+
     local body = H:JSONEncode({
       key = K,
       script_id = "${scriptId}",
@@ -493,19 +472,23 @@ local ${funcName} = function()
       timezone_offset = os.time(os.date("*t")) - os.time(os.date("!*t")),
       rng1 = math.random(),
       rng2 = math.random(10000, 99999),
-      delivery_mode = "binary"
+      delivery_mode = "binary",
+      init_time = _initTime,
+      loader_version = "19"
     })
-    
+
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
     local res
-    
+
+    -- Fast path: HttpService:PostAsync (no extra overhead)
     pcall(function()
       if H and H.PostAsync and Enum and Enum.HttpContentType then
         local resp = H:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
         if resp and #tostring(resp)>0 then res = {Body=resp} end
       end
     end)
-    
+
+    -- Fallback: request/http_request
     if not res then
       local req = request or http_request or (syn and syn.request)
       if not req then
@@ -514,17 +497,17 @@ local ${funcName} = function()
       end
       res = req({Url=url, Method="POST", Headers={["Content-Type"]="application/json",["x-shadow-sig"]="ShadowAuth-v2"}, Body=body})
     end
-    
+
     if res and res.Body then
       local okD,data = pcall(function() return H:JSONDecode(res.Body) end)
       if not okD then
         updateStatus("❌ Validation failed", Color3.fromRGB(255,100,100))
         task.wait(1.5); closeGui(false); return
       end
-      
+
       if data and data.valid and (data.script or data.binary_stream) and _SA_VERIFY_RESPONSE(data) then
         updateStatus("✅ Key valid!", Color3.fromRGB(100,220,150))
-        
+
         if data.seconds_left then
           local d = math.floor(data.seconds_left/86400)
           local h = math.floor((data.seconds_left%86400)/3600)
@@ -534,10 +517,10 @@ local ${funcName} = function()
         else
           expiryLabel.Text="♾️ Lifetime"
         end
-        
+
         updateStatus("📦 Loading...", Color3.fromRGB(100,180,255))
         task.wait(0.3)
-        
+
         local salt = data.salt or ""
         local dk = salt..hw..sKey..tostring(data.timestamp or os.time())
         local h = 0
@@ -548,11 +531,10 @@ local ${funcName} = function()
           s = bit32.bxor(s*1103515245+12345, s)
           key = key..string.char((s%95)+32)
         end
-        
+
         local code
-        
+
         if data.binary_stream and data.delivery_mode=="binary" then
-          updateStatus("📡 Binary stream...", Color3.fromRGB(100,180,255))
           local b64 = data.binary_stream
           local alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
           local dt = {}
@@ -568,12 +550,12 @@ local ${funcName} = function()
             if b64:sub(i+2,i+2)~="=" then table.insert(raw, bit32.band(bit32.rshift(n,8),255)) end
             if b64:sub(i+3,i+3)~="=" then table.insert(raw, bit32.band(n,255)) end
           end
-          
+
           if #raw<16 then
             updateStatus("❌ Invalid binary", Color3.fromRGB(255,100,100))
             task.wait(1.5); closeGui(false); return
           end
-          
+
           local offset = 9
           local chunks = {}
           while offset<=#raw-8 do
@@ -588,12 +570,12 @@ local ${funcName} = function()
             offset = offset+cs
             if isLast then break end
           end
-          
+
           local encrypted = {}
           for _,chunk in ipairs(chunks) do
             for _,byte in ipairs(chunk) do table.insert(encrypted,byte) end
           end
-          
+
           local decrypted = {}
           for i=1,#encrypted do
             local kb = key:byte((i-1)%#key+1)
@@ -627,7 +609,7 @@ local ${funcName} = function()
           end
           code = table.concat(dec)
         end
-        
+
         local loadedHash = _SA_FASTHASH(code)
         if data.script_hash and loadedHash ~= tostring(data.script_hash) then
           updateStatus("❌ Hash mismatch", Color3.fromRGB(255,100,100))
@@ -636,12 +618,14 @@ local ${funcName} = function()
 
         local fn = _SA_LOADSTRING(code)
         if fn then
+          local authTime = os.clock() - _SA_CLOCK
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
+          print("[ShadowAuth] Authenticated in " .. string.format("%.3f", authTime) .. "s")
           task.wait(0.5)
           closeGui(true)
           _G.__SA = true
 
-          -- Post-auth continuous monitor (clock freeze + env tamper)
+          -- Post-auth monitor (Luarmor-style clock freeze + env tamper)
           task.spawn(function()
             local baseClock = os.clock()
             while task.wait(0.18) do
@@ -652,13 +636,7 @@ local ${funcName} = function()
             end
           end)
 
-          -- Anti-dump hardening
-          pcall(function()
-            if string and string.dump then
-              string.dump = function() return nil end
-            end
-          end)
-
+          pcall(function() if string and string.dump then string.dump = function() return nil end end end)
           fn()
           code = nil
         else
@@ -684,6 +662,20 @@ else return _result end
 }
 
 // =====================================================
+// BOOTSTRAP: Ultra-compact Layer 1 that fetches the full loader
+// Same as Luarmor: tiny bootstrap → one fetch → all code
+// =====================================================
+function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: string): string {
+  const antiEnv = generateCompactAntiEnvCheck();
+  const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
+
+  return `${antiEnv}
+local f,b="${cacheFolder}","${initVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then a=loadstring(a) else a=nil end;
+if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${initVersion}") end);if not ok then warn("[SA] Fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);
+pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(c[%w%-]*).lua$')if m and m~=('c-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=loadstring(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
+}
+
+// =====================================================
 // MAIN SERVER
 // =====================================================
 serve(async (req) => {
@@ -691,7 +683,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const clientIP = getClientIP(req);
   const ua = req.headers.get("user-agent") || "";
   const sig = req.headers.get("x-shadow-sig");
   const hwid = req.headers.get("x-shadow-hwid") || "";
@@ -734,94 +726,72 @@ serve(async (req) => {
 
     const initVersion = (vParam?.trim()) || await generateScriptHash(script.content);
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const sessionSalt = generateSalt(scriptId, clientIP, Date.now());
 
-    console.log(`Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0,8)}..., IP: ${clientIP}`);
+    console.log(`Loader v${LOADER_VERSION}: L${layerParam || "boot"}, Script: ${scriptId.substring(0, 8)}..., IP: ${clientIP}`);
 
-    // Build cache helpers
-    const fetchBuild = async () => {
-      const { data } = await supabase
-        .from("script_builds")
-        .select("layer2, layer3, layer4, layer5")
-        .eq("script_id", scriptId)
-        .eq("version", initVersion)
-        .maybeSingle();
-      return data as null | Record<string, string>;
-    };
-
-    const upsertBuild = async (layer: number, code: string) => {
-      const patch: Record<string, unknown> = {
-        script_id: scriptId, version: initVersion,
-        updated_at: new Date().toISOString(),
-      };
-      patch[`layer${layer}`] = code;
-      await supabase.from("script_builds").upsert(patch, { onConflict: "script_id,version" });
-    };
-
-    const cacheKey = (l: number) => `l${l}_${scriptId.substring(0,8)}_${initVersion}`;
-
-    const serveLayer = async (num: number, generator: () => string) => {
-      const key = `layer${num}`;
-      
-      // Try persistent build cache
-      const build = await fetchBuild();
-      if (build?.[key] && build[key].length > 100) {
-        return new Response(build[key], {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "hit",
+    // =====================================================
+    // FULL LOADER (single fetch — Luarmor architecture)
+    // =====================================================
+    if (layerParam === "full") {
+      const cacheKey = `full_${scriptId.substring(0, 8)}_${initVersion}`;
+      const cached = loaderCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < 300000) {
+        return new Response(cached.code, {
+          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Build": "mem",
             "Cache-Control": "public, max-age=31536000, immutable" }
         });
       }
 
-      // Try memory cache
-      const ck = cacheKey(num);
-      const cached = loaderCache.get(ck);
-      if (cached && (Date.now() - cached.timestamp) < 300000) {
-        return new Response(cached.code, {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "mem" }
+      // Check DB cache
+      const { data: build } = await supabase
+        .from("script_builds")
+        .select("layer5")
+        .eq("script_id", scriptId)
+        .eq("version", initVersion)
+        .maybeSingle();
+
+      if (build?.layer5 && build.layer5.length > 100) {
+        loaderCache.set(cacheKey, { code: build.layer5, timestamp: Date.now() });
+        return new Response(build.layer5, {
+          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Build": "db",
+            "Cache-Control": "public, max-age=31536000, immutable" }
         });
       }
 
-      // Generate + Luraph + cache
-      const raw = generator();
-      const luraphResult = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
+      // Generate + Luraph obfuscate
+      const raw = generateFullLoader(supabaseUrl!, scriptId, initVersion);
+      const luraphResult = await obfuscateWithLuraph(raw, `full_${scriptId.substring(0, 8)}`);
       const protected_ = luraphResult.code;
-      loaderCache.set(ck, { code: protected_, timestamp: Date.now() });
-      await upsertBuild(num, protected_);
+
+      loaderCache.set(cacheKey, { code: protected_, timestamp: Date.now() });
+
+      // Persist to DB
+      await supabase.from("script_builds").upsert({
+        script_id: scriptId,
+        version: initVersion,
+        layer5: protected_,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "script_id,version" });
 
       return new Response(protected_, {
-        headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "miss",
+        headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Build": "miss",
           "Cache-Control": "public, max-age=31536000, immutable" }
       });
-    };
-
-    // LAYER ROUTING
-    if (layerParam === "2" || layerParam === "init") {
-      return await serveLayer(2, () => generateLayer2(supabaseUrl!, scriptId, initVersion));
     }
 
-    if (layerParam === "3") {
-      return await serveLayer(3, () => generateLayer3(supabaseUrl!, scriptId, initVersion));
-    }
-
-    if (layerParam === "4" || layerParam === "core") {
-      return await serveLayer(4, () => generateLayer4(supabaseUrl!, scriptId, initVersion));
-    }
-
-    if (layerParam === "5") {
-      return await serveLayer(5, () => generateLayer5(supabaseUrl!, scriptId, initVersion));
-    }
-
-    // Prebuild
+    // =====================================================
+    // PREBUILD
+    // =====================================================
     if (layerParam === "prebuild") {
-      for (const L of [2, 3, 4, 5]) {
-        await fetch(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=${L}&v=${initVersion}`, {
-          headers: { "x-shadow-sig": "ShadowAuth-Prebuild" },
-        });
-      }
+      await fetch(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${initVersion}`, {
+        headers: { "x-shadow-sig": "ShadowAuth-Prebuild" },
+      });
       return new Response("ok", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
     }
 
-    // Report endpoint
+    // =====================================================
+    // REPORT ENDPOINT
+    // =====================================================
     if (layerParam === "report") {
       const type = url.searchParams.get("type") || "unknown";
       const tools = url.searchParams.get("tools") || "";
@@ -836,10 +806,28 @@ serve(async (req) => {
       return new Response("ok", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
     }
 
-    // DEFAULT: LAYER 1
-    const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion);
-    return new Response(layer1Code, {
-      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1" }
+    // =====================================================
+    // LEGACY LAYER SUPPORT (backward compat)
+    // Layers 2-5 now all redirect to full loader
+    // =====================================================
+    if (layerParam === "2" || layerParam === "3" || layerParam === "4" || layerParam === "5" || layerParam === "init" || layerParam === "core") {
+      // Redirect to full loader for backward compat
+      const fullUrl = `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${initVersion}`;
+      const fullResp = await fetch(fullUrl, {
+        headers: { "x-shadow-sig": "ShadowAuth-Internal" },
+      });
+      const code = await fullResp.text();
+      return new Response(code, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": layerParam }
+      });
+    }
+
+    // =====================================================
+    // DEFAULT: BOOTSTRAP (Luarmor-style ultra-compact)
+    // =====================================================
+    const bootstrapCode = generateBootstrap(supabaseUrl!, scriptId, initVersion);
+    return new Response(bootstrapCode, {
+      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "boot" }
     });
 
   } catch (error) {
