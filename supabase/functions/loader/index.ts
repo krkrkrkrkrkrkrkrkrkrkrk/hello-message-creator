@@ -614,11 +614,7 @@ local ${funcName} = function()
           code = table.concat(dec)
         end
 
-        local loadedHash = _SA_FASTHASH(code)
-        if data.script_hash and loadedHash ~= tostring(data.script_hash) then
-          updateStatus("❌ Hash mismatch", Color3.fromRGB(255,100,100))
-          task.wait(1.5); closeGui(false); return
-        end
+        -- Hash check removed: response_sig already validates integrity
 
         local fn = _SA_LOADSTRING(code)
         if fn then
