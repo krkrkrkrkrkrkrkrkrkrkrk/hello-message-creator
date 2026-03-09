@@ -119,6 +119,15 @@ function isFloat(value: number): boolean {
 
 const rateLimit = new Map<string, number>();
 
+function fastHash32(input: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
 serve(async (req) => {
   const startTime = Date.now();
   let statusCode = 200;
@@ -178,7 +187,7 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Received request body:", JSON.stringify(body).substring(0, 200));
     
-    const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, delivery_mode } = body;
+    const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, timezone_offset, delivery_mode } = body;
     scriptId = script_id;
     
     // Check delivery mode preference
@@ -192,6 +201,27 @@ serve(async (req) => {
       return new Response(JSON.stringify({ valid: false, message: "Missing parameters" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
+    }
+
+    // Timestamp/Timezone sanity (anti-emulation)
+    if (typeof timestamp === "number") {
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (Math.abs(nowSec - timestamp) > 90) {
+        await logRequest(400, "Timestamp drift too high");
+        return new Response(JSON.stringify({ valid: false, message: "Clock drift detected" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    if (typeof timezone_offset === "number") {
+      const abs = Math.abs(timezone_offset);
+      if (abs > 50400 || timezone_offset % 900 !== 0) {
+        await logRequest(400, "Invalid timezone offset");
+        return new Response(JSON.stringify({ valid: false, message: "Invalid environment" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     }
 
     // Rate limiting
@@ -499,6 +529,8 @@ serve(async (req) => {
     let encrypted: string;
     let binaryPayload: string | null = null;
     let binaryChecksum: number | null = null;
+    let payloadHash = "";
+    const scriptHash = fastHash32(obfuscatedScript);
     
     if (useBinaryDelivery) {
       // Binary stream mode (Luarmor-identical)
@@ -506,11 +538,15 @@ serve(async (req) => {
       binaryPayload = uint8ArrayToBase64(binaryStream);
       binaryChecksum = calculateChecksum(new TextEncoder().encode(obfuscatedScript));
       encrypted = ""; // Not used in binary mode
+      payloadHash = fastHash32(binaryPayload);
       console.log(`Binary stream: ${binaryStream.length} bytes, checksum: ${binaryChecksum}`);
     } else {
       // Legacy XOR mode
       encrypted = xorEncrypt(obfuscatedScript, derivedKey);
+      payloadHash = fastHash32(encrypted);
     }
+
+    const responseSig = fastHash32(`${derivationSalt}:${serverTimestamp}:${useBinaryDelivery ? "binary" : "xor"}:${payloadHash}:${sessionToken}`);
     
     // ==================== RNG TRANSFORMATION (RBLXWHITELIST PATTERN) ====================
     let transformedRNG1: number | null = null;
@@ -532,6 +568,9 @@ serve(async (req) => {
       salt: derivationSalt,
       timestamp: serverTimestamp,
       script_name: script.name,
+      script_hash: scriptHash,
+      payload_hash: payloadHash,
+      response_sig: responseSig,
       discord_id: keyData.discord_id,
       discord_avatar: keyData.discord_avatar_url || null,
       discord_username: discordUsername,
