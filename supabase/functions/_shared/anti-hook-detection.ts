@@ -416,24 +416,39 @@ end
 export function generateFunctionHoneypots(): string {
   const t = generateRandomVarName(8);
   const maxSlots = Math.floor(Math.random() * 15) + 16;
-  const s2 = Math.floor(Math.random() * maxSlots) + 1;
-  const s8 = Math.floor(Math.random() * maxSlots) + 1;
-  const s17 = Math.floor(Math.random() * maxSlots) + 1;
+
+  const pickUniqueSlot = (used: Set<number>): number => {
+    let slot = Math.floor(Math.random() * maxSlots) + 1;
+    while (used.has(slot)) {
+      slot = Math.floor(Math.random() * maxSlots) + 1;
+    }
+    used.add(slot);
+    return slot;
+  };
+
+  const used = new Set<number>();
+  const s2 = pickUniqueSlot(used);
+  const s8 = pickUniqueSlot(used);
+  const s17 = pickUniqueSlot(used);
+
   return `
 local ${t} = {}
 local _SA_HP_SIZE = ${maxSlots}
+local _SA_HP_REF_TOSTR = tostring
+local _SA_HP_REF_PRINT = print
+local _SA_HP_REF_SUB = string.sub
 for i = 1, _SA_HP_SIZE do
-  if i==${s2} then ${t}[i]=tostring
-  elseif i==${s8} then ${t}[i]=print
-  elseif i==${s17} then ${t}[i]=string.sub
+  if i==${s2} then ${t}[i]=_SA_HP_REF_TOSTR
+  elseif i==${s8} then ${t}[i]=_SA_HP_REF_PRINT
+  elseif i==${s17} then ${t}[i]=_SA_HP_REF_SUB
   else ${t}[i]=function() end end
 end
 local function _SA_CHECK_HONEYPOTS()
   local tampered = false
   for i,v in pairs(${t}) do
-    if i==${s2} and v~=tostring then tampered=true end
-    if i==${s8} and v~=print then tampered=true end
-    if i==${s17} and v~=string.sub then tampered=true end
+    if i==${s2} and v~=_SA_HP_REF_TOSTR then tampered=true end
+    if i==${s8} and v~=_SA_HP_REF_PRINT then tampered=true end
+    if i==${s17} and v~=_SA_HP_REF_SUB then tampered=true end
   end
   if #${t}~=_SA_HP_SIZE then tampered=true end
   return tampered
