@@ -29,68 +29,7 @@ function obfuscateLua(code: string, keyId: string): string {
   return steganographicWatermark(code, keyId);
 }
 
-function xorEncrypt(data: string, key: string): string {
-  const encoder = new TextEncoder();
-  const dataBytes = encoder.encode(data);
-  const result = new Uint8Array(dataBytes.length);
-  
-  for (let i = 0; i < dataBytes.length; i++) {
-    const keyByte = key.charCodeAt(i % key.length);
-    const posByte = (i * 7 + 13) % 256;
-    result[i] = dataBytes[i] ^ keyByte ^ posByte;
-  }
-  
-  // Convert to base64 properly
-  let binary = '';
-  for (let i = 0; i < result.length; i++) {
-    binary += String.fromCharCode(result[i]);
-  }
-  return btoa(binary);
-}
-
-function generateSalt(keyId: string, hwid: string, timestamp: number): string {
-  const combined = `${keyId}:${hwid}:${timestamp}:shadowauth_v3`;
-  let hash = 0;
-  for (let i = 0; i < combined.length; i++) {
-    hash = ((hash << 5) - hash) + combined.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36) + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
-}
-
-async function hashHWID(hwid: string): Promise<string> {
-  const data = new TextEncoder().encode(hwid + "shadowauth_v7");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-// ==================== RNG TRANSFORMATION FUNCTIONS (RBLXWHITELIST PATTERN) ====================
-// These must match the client's inverse functions
-// f1(x) = 2x - 32 → Client inverse: f1^-1(y) = (y + 32) / 2
-// f2(x) = 5x + 256 → Client inverse: f2^-1(y) = (y - 256) / 5
-function transformRNG1(value: number): number {
-  return (value * 2) - 32;
-}
-
-function transformRNG2(value: number): number {
-  return (value * 5) + 256;
-}
-
-// Float detection - if math.random() was hooked to return integer, this detects it
-function isFloat(value: number): boolean {
-  return value % 1 !== 0;
-}
-
-const rateLimit = new Map<string, number>();
-
-function fastHash32(input: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(16).padStart(8, "0");
-}
+// xorEncrypt, generateSalt, hashHWID, fastHash32 all imported from shared-utils
 
 serve(async (req) => {
   const startTime = Date.now();
