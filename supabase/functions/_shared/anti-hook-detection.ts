@@ -536,13 +536,16 @@ export function generateSafeLoadstring(): string {
   return `
 local _SA_LOADSTRING
 pcall(function()
-  if getrenv then
-    _SA_LOADSTRING = getrenv().loadstring or loadstring
-  else
-    _SA_LOADSTRING = loadstring
+  if getgenv then
+    _SA_LOADSTRING = getgenv().loadstring
   end
 end)
-if not _SA_LOADSTRING then _SA_LOADSTRING = loadstring end
+if not _SA_LOADSTRING then
+  pcall(function() _SA_LOADSTRING = loadstring end)
+end
+if not _SA_LOADSTRING then
+  error("Executor is incompatible. Use Volt or Wave.")
+end
 `;
 }
 
