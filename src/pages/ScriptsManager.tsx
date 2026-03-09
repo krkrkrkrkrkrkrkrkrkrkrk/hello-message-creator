@@ -120,45 +120,67 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
   const createScript = async (name?: string, content?: string, settings?: any): Promise<void> => {
     const scriptName = name || newScript.name;
     const scriptContent = content || newScript.content;
-    
+
     if (!scriptName || !scriptContent) {
       throw new Error("Script name and content are required");
     }
 
-    setCreating(true);
-    
-    try {
-      // Deduct 10 tokens for script upload
-      const { data: tokenResult, error: tokenError } = await supabase.rpc("deduct_tokens", {
-        p_user_id: user.id,
-        p_amount: 10
+    const withTimeout = async <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+      let t: ReturnType<typeof setTimeout> | null = null;
+      const timeout = new Promise<never>((_, reject) => {
+        t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
       });
+      try {
+        return await Promise.race([promise, timeout]);
+      } finally {
+        if (t) clearTimeout(t);
+      }
+    };
+
+    setCreating(true);
+
+    try {
+      // Deduct 10 tokens for script upload (guarded with timeout to avoid UI stuck at 90%)
+      const { data: tokenResult, error: tokenError } = await withTimeout(
+        supabase.rpc("deduct_tokens", {
+          p_user_id: user.id,
+          p_amount: 10,
+        }),
+        15000,
+        "Token validation"
+      );
 
       if (tokenError) {
         console.error("Token deduction error:", tokenError);
-        throw new Error("Error deducting tokens");
+        throw new Error("Erro ao validar tokens");
       }
 
       const result = tokenResult as Record<string, unknown>;
       if (!result.success) {
-        throw new Error(result.reason as string || "Insufficient tokens. Upgrade your plan.");
+        throw new Error((result.reason as string) || "Tokens insuficientes. Faça upgrade do plano.");
       }
-      // Step 1: Upload (get IP)
+
+      // Step 1: Upload (best-effort IP lookup with timeout so it never hangs)
       let userIp = "";
       try {
-        const response = await fetch("https://api.ipify.org?format=json");
-        const data = await response.json();
-        userIp = data.ip;
+        const controller = new AbortController();
+        const abortT = setTimeout(() => controller.abort(), 2500);
+        const response = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+        clearTimeout(abortT);
+        if (response.ok) {
+          const data = await response.json();
+          userIp = data.ip || "";
+        }
       } catch (e) {
         console.error("Failed to get IP");
       }
 
       let finalContent = scriptContent;
-      
+
       // Step 2: Obfuscate if needed
       if (settings && settings.type !== "none") {
-        try {
-          const { data: obfuscateResult, error: obfuscateError } = await supabase.functions.invoke("obfuscate-script", {
+        const { data: obfuscateResult, error: obfuscateError } = await withTimeout(
+          supabase.functions.invoke("obfuscate-script", {
             body: {
               script: scriptContent,
               fileName: `${scriptName}.lua`,
@@ -170,28 +192,39 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
                 antiTamper: settings.antiTamper,
                 vmScrambling: settings.vmScrambling,
                 antiHttpSpy: settings.antiHttpSpy,
-              }
-            }
-          });
+              },
+            },
+          }),
+          60000,
+          "Obfuscation"
+        );
 
-          if (!obfuscateError && obfuscateResult?.obfuscatedScript) {
-            finalContent = obfuscateResult.obfuscatedScript;
-          }
-        } catch (e) {
-          console.error("Failed to obfuscate:", e);
+        if (obfuscateError) {
+          console.error("Obfuscation invoke error:", obfuscateError);
+        }
+        if (!obfuscateError && (obfuscateResult as any)?.obfuscatedScript) {
+          finalContent = (obfuscateResult as any).obfuscatedScript;
         }
       }
 
       // Step 3: Insert to DB
-      const { data: inserted, error } = await supabase.from("scripts").insert({
-        user_id: user.id,
-        name: scriptName,
-        content: finalContent,
-        creator_ip: userIp,
-        allowed_ips: userIp ? [userIp] : [],
-        loader_token: crypto.randomUUID(),
-        key_provider_id: settings?.keyProviderId || null,
-      }).select("id").maybeSingle();
+      const { data: inserted, error } = await withTimeout(
+        supabase
+          .from("scripts")
+          .insert({
+            user_id: user.id,
+            name: scriptName,
+            content: finalContent,
+            creator_ip: userIp,
+            allowed_ips: userIp ? [userIp] : [],
+            loader_token: crypto.randomUUID(),
+            key_provider_id: settings?.keyProviderId || null,
+          })
+          .select("id")
+          .maybeSingle(),
+        20000,
+        "DB insert"
+      );
 
       if (error) {
         throw error;
@@ -199,15 +232,20 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
 
       // Luarmor-style: prebuild layers 2-5 right after publish
       if (inserted?.id) {
-        supabase.functions.invoke("prebuild-script", { body: { scriptId: inserted.id } })
+        supabase.functions
+          .invoke("prebuild-script", { body: { scriptId: inserted.id } })
           .catch(() => {});
       }
 
-      // Step 4: CRITICAL - Immediately refetch to show the new script
-      await fetchScripts();
-      
+      // Step 4: Immediately refetch to show the new script
+      await withTimeout(fetchScripts(), 10000, "Refresh scripts");
+
       setNewScript({ name: "", content: "" });
       setShowModal(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Falha no upload";
+      toast.error(msg);
+      throw err;
     } finally {
       setCreating(false);
     }

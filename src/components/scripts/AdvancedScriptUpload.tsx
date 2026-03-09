@@ -182,7 +182,9 @@ export default function AdvancedScriptUpload({ onUpload, isCreating }: AdvancedS
         handleClear();
       }, 1500);
     } catch (error) {
+      const msg = error instanceof Error ? error.message : "Upload failed";
       console.error("Upload failed:", error);
+      toast.error(msg);
       setUploadStep("idle");
       setProgress(0);
     }
