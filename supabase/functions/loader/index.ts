@@ -734,7 +734,8 @@ serve(async (req) => {
     // FULL LOADER (single fetch — Luarmor architecture)
     // =====================================================
     if (layerParam === "full") {
-      const cacheKey = `full_${scriptId.substring(0, 8)}_${initVersion}`;
+      // Cache key includes loader version to invalidate on code changes
+      const cacheKey = `full_${scriptId.substring(0, 8)}_${initVersion}_v${LOADER_VERSION}`;
       const cached = loaderCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < 300000) {
         return new Response(cached.code, {
