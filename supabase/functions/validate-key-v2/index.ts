@@ -43,7 +43,15 @@ function transformRNG2(v: number): number {
   return (v ^ 0x5A5A5A) + 42;
 }
 
-serve(async (req) => {
+function fastHash32Bytes(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let h = 2166136261;
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i];
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
   const startTime = Date.now();
   let statusCode = 200;
   let scriptId: string | null = null;
