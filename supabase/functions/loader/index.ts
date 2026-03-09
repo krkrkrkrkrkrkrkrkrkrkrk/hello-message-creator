@@ -237,23 +237,33 @@ function generateBinaryDataBlob(): { escapedKey: string; escapedSalt: string; si
 // =====================================================
 // LAYER 1: Ultra-Compact Bootstrap (Luarmor-identical ~4 lines)
 // =====================================================
-function generateLayer1(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer1(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   const blob = generateBinaryDataBlob();
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const antiEnv = generateCompactAntiEnvCheck();
-  const headerData = Array.from({length: 4}, () => Math.floor(Math.random() * 4294967295));
+  const headerData = Array.from({ length: 4 }, () => Math.floor(Math.random() * 4294967295));
 
   return `${antiEnv}
-_bd0={${headerData.join(',')},"${blob.escapedKey}",${Math.floor(Math.random()*99999999)},"${blob.escapedSalt}","${blob.signature}"};
+_bd0={${headerData.join(",")},"${blob.escapedKey}",${Math.floor(Math.random() * 99999999)},"${blob.escapedSalt}","${blob.signature}"};
 local f,b="${cacheFolder}","${initVersion}";local a;pcall(function()a=readfile(f.."/i-"..b..".lua")end) if a and #a>2000 then a=loadstring(a) else a=nil end;
-if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
+if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=2&v=${initVersion}${compatQuery}") end);if not ok then warn("[ShadowAuth] Layer 2 fetch failed: "..tostring(err)) return end;if not a or #a<100 then warn("[ShadowAuth] Layer 2 empty response") return end;pcall(function()writefile(f.."/i-"..b..".lua",a)end);
 pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(i[%w%-]*).lua$')if m and m~=('i-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=loadstring(a);if fn then return fn() else warn("[ShadowAuth] Layer 2 loadstring failed: "..tostring(lerr)) end end`;
 }
 
 // =====================================================
 // LAYER 2: Bootstrapper with anti-env scoring
 // =====================================================
-function generateLayer2(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer2(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const esc = generateEscapeSequences(16);
 
@@ -276,7 +286,7 @@ local function _wc(n,d)
 end
 
 local ok,c3 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=3&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=3&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c3 and #c3>100 then
@@ -292,9 +302,16 @@ return error("[ShadowAuth] Layer 3 unavailable")
 // =====================================================
 // LAYER 3: Anti-Hook Scanner (full Luarmor parity)
 // =====================================================
-function generateLayer3(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g,
-    `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`);
+function generateLayer3(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
+  const antiHookCode = generateAntiHookCode().replace(
+    /__REPORT_URL__/g,
+    `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=report`,
+  );
 
   return `--[[ ShadowAuth Layer 3 - Anti-Hook V8.0 ]]
 
@@ -303,7 +320,7 @@ ${generateSafeLoadstring()}
 ${antiHookCode}
 
 local ok,c4 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=4&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c4 and #c4>100 then
@@ -318,13 +335,18 @@ return error("[ShadowAuth] Layer 4 unavailable")
 // =====================================================
 // LAYER 4: Bridge to Layer 5
 // =====================================================
-function generateLayer4(supabaseUrl: string, scriptId: string, initVersion: string): string {
+function generateLayer4(
+  supabaseUrl: string,
+  scriptId: string,
+  initVersion: string,
+  compatQuery: string,
+): string {
   return `--[[ ShadowAuth Layer 4 ]]
 
 ${generateSafeLoadstring()}
 
 local ok,c5 = pcall(function()
-  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=5&v=${initVersion}")
+  return game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=5&v=${initVersion}${compatQuery}")
 end)
 
 if ok and c5 and #c5>100 then
@@ -767,7 +789,15 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const sessionSalt = generateSalt(scriptId, clientIP);
 
-    console.log(`Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0,8)}..., IP: ${clientIP}`);
+    const compat = (() => {
+      const c = (url.searchParams.get("compat") || "").trim().toLowerCase();
+      return c === "1" || c === "true";
+    })();
+    const compatQuery = compat ? "&compat=1" : "";
+
+    console.log(
+      `Loader v${LOADER_VERSION}: L${layerParam || "1"}, Script: ${scriptId.substring(0, 8)}..., IP: ${clientIP}${compat ? " (compat)" : ""}`,
+    );
 
     // Build cache helpers
     const fetchBuild = async () => {
@@ -782,63 +812,90 @@ serve(async (req) => {
 
     const upsertBuild = async (layer: number, code: string) => {
       const patch: Record<string, unknown> = {
-        script_id: scriptId, version: initVersion,
+        script_id: scriptId,
+        version: initVersion,
         updated_at: new Date().toISOString(),
       };
       patch[`layer${layer}`] = code;
       await supabase.from("script_builds").upsert(patch, { onConflict: "script_id,version" });
     };
 
-    const cacheKey = (l: number) => `l${l}_${scriptId.substring(0,8)}_${initVersion}`;
+    const cacheKey = (l: number, isCompat: boolean) =>
+      `l${l}_${scriptId.substring(0, 8)}_${initVersion}_${isCompat ? "compat" : "default"}`;
 
-    const serveLayer = async (num: number, generator: () => string) => {
+    const serveLayer = async (num: number, generator: () => string, opts: { compat: boolean }) => {
       const key = `layer${num}`;
-      
-      // Try persistent build cache
-      const build = await fetchBuild();
-      if (build?.[key] && build[key].length > 100) {
-        return new Response(build[key], {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "hit",
-            "Cache-Control": "public, max-age=31536000, immutable" }
-        });
+
+      // IMPORTANT: compat responses must NOT touch persistent build cache (avoid poisoning cached builds)
+      if (!opts.compat) {
+        const build = await fetchBuild();
+        if (build?.[key] && build[key].length > 100) {
+          return new Response(build[key], {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/plain",
+              "X-Layer": String(num),
+              "X-Build": "hit",
+              "X-Compat": "0",
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          });
+        }
       }
 
       // Try memory cache
-      const ck = cacheKey(num);
+      const ck = cacheKey(num, opts.compat);
       const cached = loaderCache.get(ck);
-      if (cached && (Date.now() - cached.timestamp) < 300000) {
+      if (cached && Date.now() - cached.timestamp < 300000) {
         return new Response(cached.code, {
-          headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "mem" }
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/plain",
+            "X-Layer": String(num),
+            "X-Build": "mem",
+            "X-Compat": opts.compat ? "1" : "0",
+            "Cache-Control": opts.compat ? "no-store" : undefined,
+          } as Record<string, string>,
         });
       }
 
-      // Generate + Luraph + cache
+      // Generate (+ optional Luraph)
       const raw = generator();
-      const protected_ = await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0,8)}`);
-      loaderCache.set(ck, { code: protected_, timestamp: Date.now() });
-      await upsertBuild(num, protected_);
+      const finalCode = opts.compat ? raw : await obfuscateWithLuraph(raw, `layer${num}_${scriptId.substring(0, 8)}`);
 
-      return new Response(protected_, {
-        headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": String(num), "X-Build": "miss",
-          "Cache-Control": "public, max-age=31536000, immutable" }
+      loaderCache.set(ck, { code: finalCode, timestamp: Date.now() });
+
+      if (!opts.compat) {
+        await upsertBuild(num, finalCode);
+      }
+
+      return new Response(finalCode, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/plain",
+          "X-Layer": String(num),
+          "X-Build": "miss",
+          "X-Compat": opts.compat ? "1" : "0",
+          "Cache-Control": opts.compat ? "no-store" : "public, max-age=31536000, immutable",
+        },
       });
     };
 
     // LAYER ROUTING
     if (layerParam === "2" || layerParam === "init") {
-      return await serveLayer(2, () => generateLayer2(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(2, () => generateLayer2(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "3") {
-      return await serveLayer(3, () => generateLayer3(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(3, () => generateLayer3(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "4" || layerParam === "core") {
-      return await serveLayer(4, () => generateLayer4(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(4, () => generateLayer4(supabaseUrl!, scriptId, initVersion, compatQuery), { compat });
     }
 
     if (layerParam === "5") {
-      return await serveLayer(5, () => generateLayer5(supabaseUrl!, scriptId, initVersion));
+      return await serveLayer(5, () => generateLayer5(supabaseUrl!, scriptId, initVersion), { compat });
     }
 
     // Prebuild
@@ -867,9 +924,9 @@ serve(async (req) => {
     }
 
     // DEFAULT: LAYER 1
-    const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion);
+    const layer1Code = generateLayer1(supabaseUrl!, scriptId, initVersion, compatQuery);
     return new Response(layer1Code, {
-      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1" }
+      headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "1", "X-Compat": compat ? "1" : "0" },
     });
 
   } catch (error) {
