@@ -42,8 +42,7 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
   
-  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
-                   req.headers.get("cf-connecting-ip") || "unknown";
+  const clientIP = getClientIP(req);
   const ua = req.headers.get("user-agent") || "";
 
   // Log request helper
