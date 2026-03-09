@@ -623,7 +623,7 @@ local ${funcName} = function()
         end
 
         updateStatus("📦 Loading...", Color3.fromRGB(100,180,255))
-        task.wait(0.3)
+        task.wait(0.15)
 
         local salt = data.salt or ""
         local key = data.dk or ""
