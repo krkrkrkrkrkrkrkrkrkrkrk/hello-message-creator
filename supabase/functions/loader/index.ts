@@ -112,19 +112,7 @@ function unauthorizedResponse(req: Request): Response {
   return new Response("Unauthorized", { status: 401, headers: { ...corsHeaders, "Content-Type": "text/plain" } });
 }
 
-function isExecutor(ua: string): boolean {
-  const p = [/synapse/i,/krnl/i,/fluxus/i,/electron/i,/oxygen/i,/sentinel/i,/celery/i,/arceus/i,/roblox/i,/comet/i,/trigon/i,/delta/i,/hydrogen/i,/evon/i,/vegax/i,/jjsploit/i,/nihon/i,/zorara/i,/solara/i,/wave/i,/script-?ware/i,/wininet/i,/winhttp/i,/httpget/i,/exploiter/i,/macsploit/i,/calamari/i,/sirhurt/i,/protosmasher/i,/xeno/i,/codex/i,/nezur/i,/ro-?exec/i];
-  return p.some(r => r.test(ua));
-}
-
-function isLikelyExecutorRequest(req: Request): boolean {
-  const accept = (req.headers.get("accept") || "").toLowerCase();
-  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
-  if (!accept || accept === "*/*" || accept === "") {
-    if (secFetchDest !== "document" && !accept.includes("text/html")) return true;
-  }
-  return false;
-}
+// isExecutor & isLikelyExecutorRequest imported from shared-utils
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
 const LOADER_VERSION = "18.0.0";
