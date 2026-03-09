@@ -111,7 +111,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "19.3.1";
+const LOADER_VERSION = "20.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -237,7 +237,7 @@ ${generateLuarmorStyleAntiEnvLog()}
 -- ======= ANTI-HOOK SCANNER =======
 ${antiHookCode}
 
--- ======= SECURITY MODULES =======
+-- ======= SECURITY MODULES (parallel init) =======
 ${generateTutorialStateHWID()}
 ${generateExecutorIdentification()}
 ${generateHeartbeatCounter()}
@@ -254,6 +254,92 @@ ${generateWebSocketClient()}
 ${generateRecursionDepthTest()}
 ${generateStackDepthAntiDebug()}
 ${generateRequestMetatableTrap()}
+
+-- ======= ADVANCED ANTI-DEBUG V20 =======
+-- debug.info fingerprinting (detects debugger injection)
+local _SA_DBG_SCORE = 0
+pcall(function()
+  if debug and debug.info then
+    local ok, info = pcall(debug.info, 1, "sln")
+    if ok and type(info) == "string" and (info:find("hook") or info:find("spy") or info:find("inject")) then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 5
+    end
+  end
+end)
+
+-- hookmetamethod detection
+pcall(function()
+  if hookmetamethod then
+    local t = setmetatable({}, {__index = function() return 42 end})
+    local orig = t[1]
+    if orig ~= 42 then _SA_DBG_SCORE = _SA_DBG_SCORE + 3 end
+  end
+end)
+
+-- getrawmetatable trap
+pcall(function()
+  if getrawmetatable then
+    local sentinel = newproxy(true)
+    local mt = getmetatable(sentinel)
+    mt.__tostring = function() return "sa_sentinel" end
+    mt.__metatable = "locked"
+    local raw = getrawmetatable(sentinel)
+    if raw and raw.__tostring then
+      local r = raw.__tostring()
+      if r ~= "sa_sentinel" then _SA_DBG_SCORE = _SA_DBG_SCORE + 4 end
+    end
+  end
+end)
+
+-- clonefunction integrity
+pcall(function()
+  if clonefunction then
+    local orig = print
+    local cloned = clonefunction(orig)
+    if type(cloned) ~= "function" then _SA_DBG_SCORE = _SA_DBG_SCORE + 3 end
+    if rawequal and rawequal(orig, cloned) then _SA_DBG_SCORE = _SA_DBG_SCORE + 2 end
+  end
+end)
+
+-- checkcaller detection (executor-specific)
+pcall(function()
+  if checkcaller then
+    local isCaller = checkcaller()
+    if not isCaller then _SA_DBG_SCORE = _SA_DBG_SCORE + 1 end
+  end
+end)
+
+-- RemoteSpy / InfYield / Unnamed detection in CoreGui
+pcall(function()
+  local cg = game:GetService("CoreGui")
+  for _, child in ipairs(cg:GetChildren()) do
+    local n = child.Name:lower()
+    if n:find("remotespy") or n:find("infyield") or n:find("unnamed") or n:find("serverspy") or n:find("scriptdumper") then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 5
+    end
+  end
+end)
+
+-- _G pollution check (common logger pattern)
+pcall(function()
+  local suspicious_keys = {"__namecall_hook", "__index_hook", "RemoteSpy", "SimpleSpy", "HttpSpy", "ScriptDumper"}
+  for _, k in ipairs(suspicious_keys) do
+    if _G[k] ~= nil or (getgenv and getgenv()[k] ~= nil) then
+      _SA_DBG_SCORE = _SA_DBG_SCORE + 3
+      break
+    end
+  end
+end)
+
+if _SA_DBG_SCORE >= 6 then
+  pcall(function()
+    spawn(function()
+      pcall(function()
+        game:HttpGet("${reportUrl}?type=debug_detected&tools=score_" .. tostring(_SA_DBG_SCORE))
+      end)
+    end)
+  end)
+end
 
 -- ======= MAIN =======
 local ${funcName} = function()
@@ -416,33 +502,43 @@ local ${funcName} = function()
 
   -- Timing: report how long init took
   local _initTime = os.clock() - _SA_CLOCK
-  print("[ShadowAuth] Init: " .. string.format("%.3f", _initTime) .. "s")
 
-  -- Service sanity (anti-sandbox)
-  local _saServiceOk = pcall(function()
-    game:GetService("HttpService")
-    game:GetService("RunService")
-    game:GetService("Players")
-    game:GetService("RbxAnalyticsService")
-  end)
-  if not _saServiceOk then
-    updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100))
-    task.wait(1.2); closeGui(false); return
+  -- Parallel security checks (non-blocking, fast)
+  local _securityOk = true
+  local _securityChecks = {
+    function()
+      local ok = pcall(function()
+        game:GetService("HttpService")
+        game:GetService("RunService")
+        game:GetService("Players")
+        game:GetService("RbxAnalyticsService")
+      end)
+      if not ok then _securityOk = false; updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100)) end
+    end,
+    function()
+      if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
+        _securityOk = false; updateStatus("❌ Integrity failure", Color3.fromRGB(255,100,100))
+      end
+    end,
+    function()
+      pcall(function()
+        if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then
+          _securityOk = false; updateStatus("❌ Environment tampered", Color3.fromRGB(255,100,100))
+        end
+      end)
+    end,
+    function()
+      if _SA_DBG_SCORE and _SA_DBG_SCORE >= 8 then
+        _securityOk = false; updateStatus("❌ Debug tools detected", Color3.fromRGB(255,100,100))
+      end
+    end,
+  }
+
+  for _, check in ipairs(_securityChecks) do pcall(check) end
+
+  if not _securityOk then
+    task.wait(1); closeGui(false); return
   end
-
-  -- Honeypot check
-  if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
-    updateStatus("❌ Integrity failure", Color3.fromRGB(255,100,100))
-    task.wait(1.5); closeGui(false); return
-  end
-
-  -- getfenv key check
-  pcall(function()
-    if _SA_GETFENV_KEY and getfenv()[_SA_GETFENV_KEY] ~= _SA_GETFENV_VAL then
-      updateStatus("❌ Environment tampered", Color3.fromRGB(255,100,100))
-      task.wait(1.5); closeGui(false); return
-    end
-  end)
 
   _SA_CHECK_TIME()
 
@@ -527,7 +623,7 @@ local ${funcName} = function()
         end
 
         updateStatus("📦 Loading...", Color3.fromRGB(100,180,255))
-        task.wait(0.3)
+        task.wait(0.15)
 
         local salt = data.salt or ""
         local key = data.dk or ""
@@ -621,7 +717,7 @@ local ${funcName} = function()
           local authTime = os.clock() - _SA_CLOCK
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
           print("[ShadowAuth] Authenticated in " .. string.format("%.3f", authTime) .. "s")
-          task.wait(0.5)
+          task.wait(0.2)
           closeGui(true)
           _G.__SA = true
 
@@ -670,11 +766,11 @@ function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: s
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const cacheBuildVersion = `${initVersion}-lv${LOADER_VERSION}`;
 
+  // Bootstrap with aggressive cache cleanup on version mismatch
   return `${antiEnv}
 local _LS=loadstring;pcall(function()if getgenv then _LS=getgenv().loadstring or _LS end end);
-local f,b="${cacheFolder}","${cacheBuildVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then a=_LS(a) else a=nil end;
-if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}") end);if (not ok or not a or #a<100) then local _u="${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}&r="..tostring(math.floor(os.clock()*100000));local ok2,err2=pcall(function() a=game:HttpGet(_u) end);if not ok2 then warn("[SA] Fetch failed: "..tostring(err2 or err)) return end end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);
-pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(c[%w%-]*).lua$')if m and m~=('c-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=_LS(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
+local f,b="${cacheFolder}","${cacheBuildVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then local ok,fn=pcall(_LS,a);if ok and fn then return fn() end;a=nil end;
+if not a then pcall(makefolder,f);pcall(function()for _,v in pairs(listfiles('./'..f))do pcall(delfile,v)end end);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}") end);if (not ok or not a or #a<100) then local _u="${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}&r="..tostring(math.floor(os.clock()*100000));local ok2,err2=pcall(function() a=game:HttpGet(_u) end);if not ok2 then warn("[SA] Fetch failed: "..tostring(err2 or err)) return end end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);local fn,lerr=_LS(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
 }
 
 // =====================================================
@@ -790,6 +886,27 @@ serve(async (req) => {
             "Cache-Control": "public, max-age=31536000, immutable" }
         });
       }
+
+      // Auto-purge ALL stale builds for this script (old loader versions)
+      try {
+        const { data: oldBuilds } = await supabase
+          .from("script_builds")
+          .select("version")
+          .eq("script_id", scriptId);
+        if (oldBuilds) {
+          const staleVersions = oldBuilds
+            .filter(b => b.version !== dbVersion)
+            .map(b => b.version);
+          if (staleVersions.length > 0) {
+            await supabase
+              .from("script_builds")
+              .delete()
+              .eq("script_id", scriptId)
+              .in_("version", staleVersions);
+            console.log(`[Cache] Purged ${staleVersions.length} stale builds for ${scriptId.substring(0, 8)}`);
+          }
+        }
+      } catch (_e) { /* non-critical */ }
 
       // Generate + Luraph obfuscate
       const raw = generateFullLoader(supabaseUrl!, scriptId, initVersion);
