@@ -476,6 +476,24 @@ local ${funcName} = function()
   local function updateStatus(text, color)
     if statusLabel then statusLabel.Text=text; if color then statusLabel.TextColor3=color end end
   end
+
+  local function _SA_FASTHASH(s)
+    local h = 2166136261
+    for i = 1, #s do
+      h = bit32.bxor(h, string.byte(s, i))
+      h = bit32.band((h * 16777619), 0xFFFFFFFF)
+    end
+    return string.format("%08x", h)
+  end
+
+  local function _SA_VERIFY_RESPONSE(data)
+    if not data or not data.salt or not data.timestamp or not data.session_token then return false end
+    local mode = data.delivery_mode == "binary" and "binary" or "xor"
+    local payloadHash = data.payload_hash or _SA_FASTHASH(mode == "binary" and (data.binary_stream or "") or (data.script or ""))
+    local expected = _SA_FASTHASH(tostring(data.salt)..":"..tostring(data.timestamp)..":"..mode..":"..payloadHash..":"..tostring(data.session_token))
+    if data.response_sig and data.response_sig ~= expected then return false end
+    return true
+  end
   
   local function closeGui(success)
     if gui then
