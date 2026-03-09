@@ -510,6 +510,20 @@ local ${funcName} = function()
   end
   
   pcall(createGui)
+
+  -- Service sanity check (anti-sandbox)
+  local _saServiceOk = pcall(function()
+    game:GetService("HttpService")
+    game:GetService("RunService")
+    game:GetService("Players")
+    game:GetService("RbxAnalyticsService")
+  end)
+  if not _saServiceOk then
+    updateStatus("❌ Invalid environment", Color3.fromRGB(255,100,100))
+    task.wait(1.2)
+    closeGui(false)
+    return
+  end
   
   -- Verify honeypots not tampered
   if _SA_CHECK_HONEYPOTS and _SA_CHECK_HONEYPOTS() then
