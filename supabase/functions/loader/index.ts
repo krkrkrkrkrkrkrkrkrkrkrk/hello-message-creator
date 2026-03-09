@@ -766,11 +766,11 @@ function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: s
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const cacheBuildVersion = `${initVersion}-lv${LOADER_VERSION}`;
 
+  // Bootstrap with aggressive cache cleanup on version mismatch
   return `${antiEnv}
 local _LS=loadstring;pcall(function()if getgenv then _LS=getgenv().loadstring or _LS end end);
-local f,b="${cacheFolder}","${cacheBuildVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then a=_LS(a) else a=nil end;
-if a then return a() else pcall(makefolder,f);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}") end);if (not ok or not a or #a<100) then local _u="${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}&r="..tostring(math.floor(os.clock()*100000));local ok2,err2=pcall(function() a=game:HttpGet(_u) end);if not ok2 then warn("[SA] Fetch failed: "..tostring(err2 or err)) return end end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);
-pcall(function()for _,v in pairs(listfiles('./'..f))do local m=v:match('(c[%w%-]*).lua$')if m and m~=('c-'..b)then pcall(delfile,f..'/'..m..'.lua')end end end);local fn,lerr=_LS(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
+local f,b="${cacheFolder}","${cacheBuildVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then local ok,fn=pcall(_LS,a);if ok and fn then return fn() end;a=nil end;
+if not a then pcall(makefolder,f);pcall(function()for _,v in pairs(listfiles('./'..f))do pcall(delfile,v)end end);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}") end);if (not ok or not a or #a<100) then local _u="${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}&r="..tostring(math.floor(os.clock()*100000));local ok2,err2=pcall(function() a=game:HttpGet(_u) end);if not ok2 then warn("[SA] Fetch failed: "..tostring(err2 or err)) return end end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);local fn,lerr=_LS(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
 }
 
 // =====================================================
