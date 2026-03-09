@@ -215,8 +215,7 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
         }
       }
 
-      // Step 3: Insert to DB
-      const { data: inserted, error } = await withTimeout(
+      const insertRes = await withTimeout<any>(
         supabase
           .from("scripts")
           .insert({
@@ -229,10 +228,13 @@ const [newScript, setNewScript] = useState({ name: "", content: "" });
             key_provider_id: settings?.keyProviderId || null,
           })
           .select("id")
-          .maybeSingle(),
+          .maybeSingle() as any,
         20000,
         "DB insert"
       );
+
+      const inserted = insertRes.data as { id: string } | null;
+      const error = insertRes.error;
 
       if (error) {
         throw error;
