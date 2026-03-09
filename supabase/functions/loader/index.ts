@@ -550,6 +550,9 @@ local ${funcName} = function()
       exec_id = _SA_EXEC_ID or 0,
       tbl_acc = _SA_TBL_ACC or 0,
       tostr_result = _SA_TOSTR_RESULT or 0,
+      timezone_offset = os.time(os.date("*t")) - os.time(os.date("!*t")),
+      rng1 = math.random(),
+      rng2 = math.random(10000, 99999),
       delivery_mode = "binary"
     })
     
