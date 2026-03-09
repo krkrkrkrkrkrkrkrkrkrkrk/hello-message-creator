@@ -508,6 +508,8 @@ serve(async (req) => {
     let encrypted: string;
     let binaryPayload: string | null = null;
     let binaryChecksum: number | null = null;
+    let payloadHash = "";
+    const scriptHash = fastHash32(obfuscatedScript);
     
     if (useBinaryDelivery) {
       // Binary stream mode (Luarmor-identical)
@@ -515,11 +517,15 @@ serve(async (req) => {
       binaryPayload = uint8ArrayToBase64(binaryStream);
       binaryChecksum = calculateChecksum(new TextEncoder().encode(obfuscatedScript));
       encrypted = ""; // Not used in binary mode
+      payloadHash = fastHash32(binaryPayload);
       console.log(`Binary stream: ${binaryStream.length} bytes, checksum: ${binaryChecksum}`);
     } else {
       // Legacy XOR mode
       encrypted = xorEncrypt(obfuscatedScript, derivedKey);
+      payloadHash = fastHash32(encrypted);
     }
+
+    const responseSig = fastHash32(`${derivationSalt}:${serverTimestamp}:${useBinaryDelivery ? "binary" : "xor"}:${payloadHash}:${sessionToken}`);
     
     // ==================== RNG TRANSFORMATION (RBLXWHITELIST PATTERN) ====================
     let transformedRNG1: number | null = null;
