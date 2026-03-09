@@ -245,7 +245,7 @@ function generateLayer5(supabaseUrl: string, scriptId: string, initVersion: stri
   const funcName = generateRandomVarName(12);
   const sessionSalt = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
 
-  return `--[[ ShadowAuth Layer 5 - Validation V8.0 ]]
+  return `--[[ ShadowAuth Layer 5 - 3-Phase Handshake V9.0 (Luarmor-identical) ]]
 
 ${generateSafeLoadstring()}
 ${generateTutorialStateHWID()}
@@ -260,12 +260,19 @@ ${generateGetfenvMonitor()}
 ${generateTostringComparison()}
 ${generateKickHandler()}
 ${generateCrashFunction()}
+${generateWebSocketClient()}
+${generateRecursionDepthTest()}
+${generateStackDepthAntiDebug()}
+${generateRequestMetatableTrap()}
 
 local ${funcName} = function()
   local Players = game:GetService("Players")
   local TweenService = game:GetService("TweenService")
   local H = game:GetService("HttpService")
   local P = Players.LocalPlayer
+  local _SA_SHUTDOWN = false
+  local _SA_SESSION = nil
+  local _SA_HB_CREDIT = 5
   
   -- GUI
   local gui, mainFrame, statusLabel, expiryLabel
