@@ -19,56 +19,14 @@ import {
 } from "../_shared/shared-utils.ts";
 
 // ==================== IP GEOLOCATION ====================
-// Using ip-api.com free tier (no API key needed, 45 requests/minute limit)
-async function getCountryFromIP(ip: string): Promise<string | null> {
-  // Skip for localhost/private IPs
-  if (ip === "unknown" || ip === "127.0.0.1" || ip.startsWith("192.168.") || ip.startsWith("10.")) {
-    return null;
-  }
-  
-  try {
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode`, {
-      signal: AbortSignal.timeout(3000) // 3 second timeout
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.status === "success" && data.country) {
-        return data.country;
-      }
-    }
-  } catch (e) {
-    console.log("IP geolocation failed:", e);
-  }
-  
-  return null;
-}
+// Imported from shared-utils: getCountryFromIP
 
 // ==================== SECURITY FUNCTIONS ====================
-
-function isExecutor(ua: string): boolean {
-  const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i, 
-    /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i, 
-    /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i, /volt/i];
-  return patterns.some(p => p.test(ua));
-}
-
-function encStr(str: string, key: number): number[] {
-  const nums: number[] = [];
-  for (let i = 0; i < str.length; i++) {
-    nums.push(str.charCodeAt(i) ^ ((key + i * 7) % 256));
-  }
-  return nums;
-}
+// isExecutor, hashHWID, fastHash32, generateSalt, xorEncrypt all imported from shared-utils
 
 function obfuscateLua(code: string, keyId: string): string {
-  const seed = Date.now() % 100000;
-  const wmData = encStr(`WM:${keyId}:${Date.now()}`, seed);
-  const watermark = `--[[${wmData.join(",")}]]`;
-  
-  // Return code with watermark only, no wrapper to avoid environment isolation issues
-  return `${watermark}
-${code}`;
+  // Use steganographic watermark instead of comment-based (cannot be stripped by regex)
+  return steganographicWatermark(code, keyId);
 }
 
 function xorEncrypt(data: string, key: string): string {
