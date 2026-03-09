@@ -5,12 +5,18 @@ import {
   uint8ArrayToBase64, 
   calculateChecksum 
 } from "../_shared/binary-stream.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shadow-sig, x-delivery-mode",
-  "Cache-Control": "no-store",
-};
+import {
+  corsHeaders,
+  isExecutor,
+  hashHWID,
+  fastHash32,
+  generateSalt,
+  xorEncrypt,
+  getClientIP,
+  getCountryFromIP,
+  steganographicWatermark,
+  deriveEncryptionKey,
+} from "../_shared/shared-utils.ts";
 
 // ==================== IP GEOLOCATION ====================
 // Using ip-api.com free tier (no API key needed, 45 requests/minute limit)
