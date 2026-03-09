@@ -203,6 +203,27 @@ serve(async (req) => {
       });
     }
 
+    // Timestamp/Timezone sanity (anti-emulation)
+    if (typeof timestamp === "number") {
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (Math.abs(nowSec - timestamp) > 90) {
+        await logRequest(400, "Timestamp drift too high");
+        return new Response(JSON.stringify({ valid: false, message: "Clock drift detected" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    if (typeof timezone_offset === "number") {
+      const abs = Math.abs(timezone_offset);
+      if (abs > 50400 || timezone_offset % 900 !== 0) {
+        await logRequest(400, "Invalid timezone offset");
+        return new Response(JSON.stringify({ valid: false, message: "Invalid environment" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // Rate limiting
     const rlKey = `${clientIP}:${key}`;
     const now = Date.now();
