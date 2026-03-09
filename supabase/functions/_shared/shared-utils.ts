@@ -204,82 +204,46 @@ export async function generateScriptHash(content: string): Promise<string> {
 }
 
 // =====================================================
-// WATERMARKING (Steganographic - NOT comment-based)
+// WATERMARKING (ASCII-safe for executor compatibility)
 // =====================================================
 
 /**
- * Embed watermark steganographically into Lua code using:
- * 1. Variable name encoding (encode keyId bits into generated var names)
- * 2. Whitespace steganography (spaces vs tabs at line ends)
- * 3. String literal byte-level encoding (invisible Unicode in string constants)
- * 
- * This CANNOT be stripped by regex like --[[...]] comments.
+ * Embed watermark in Lua code without invisible Unicode characters.
+ * NOTE: Some executors fail to parse scripts containing U+200B/U+200C,
+ * so watermarking must remain strictly ASCII-safe.
  */
 export function steganographicWatermark(code: string, keyId: string): string {
-  // Encode keyId into a 32-bit fingerprint
   let fp = 0;
   for (let i = 0; i < keyId.length; i++) {
     fp = ((fp << 5) - fp + keyId.charCodeAt(i)) >>> 0;
   }
-  
-  // Encode timestamp
+
   const ts = Date.now();
   const tsHash = (ts ^ (ts >>> 16)) >>> 0;
-  
-  // Method 1: Inject invisible zero-width characters between real code lines
-  // Uses ZWSP (U+200B) and ZWNJ (U+200C) to encode bits
-  const bits: number[] = [];
-  for (let i = 31; i >= 0; i--) bits.push((fp >> i) & 1);
-  for (let i = 31; i >= 0; i--) bits.push((tsHash >> i) & 1);
-  
+
   const lines = code.split("\n");
-  let bitIdx = 0;
-  
-  for (let i = 0; i < lines.length && bitIdx < bits.length; i++) {
-    // Only watermark non-empty, non-comment lines
-    const trimmed = lines[i].trim();
-    if (trimmed.length > 5 && !trimmed.startsWith("--")) {
-      // Add zero-width character at end of line
-      const zw = bits[bitIdx] === 1 ? "\u200B" : "\u200C";
-      lines[i] = lines[i] + zw;
-      bitIdx++;
-    }
-  }
-  
-  // Method 2: Inject a decoy local variable with encoded name
-  // The variable name itself encodes the fingerprint in base36
   const encodedFP = fp.toString(36).padStart(7, "0");
   const encodedTS = tsHash.toString(36).padStart(7, "0");
-  const decoyVar = `_${encodedFP}${encodedTS}`;
-  
-  // Insert decoy at a random position in the code (after first 3 lines)
-  const insertPos = Math.min(3, lines.length - 1);
-  lines.splice(insertPos, 0, `local ${decoyVar} = ${Math.floor(Math.random() * 99999)}`);
-  
+  const markerVar = `_sa_wm_${encodedFP}_${encodedTS}`;
+
+  const insertPos = Math.min(3, Math.max(0, lines.length - 1));
+  lines.splice(insertPos, 0, `local ${markerVar} = ${Math.floor(Math.random() * 99999)}`);
+
   return lines.join("\n");
 }
 
 /**
- * Extract watermark from steganographically marked code
+ * Extract watermark from ASCII marker variable.
  */
 export function extractWatermark(code: string): { keyFingerprint: number; timestampHash: number } | null {
-  const lines = code.split("\n");
-  const bits: number[] = [];
-  
-  for (const line of lines) {
-    if (line.includes("\u200B")) bits.push(1);
-    else if (line.includes("\u200C")) bits.push(0);
-  }
-  
-  if (bits.length < 64) return null;
-  
-  let keyFingerprint = 0;
-  for (let i = 0; i < 32; i++) keyFingerprint = (keyFingerprint << 1) | bits[i];
-  
-  let timestampHash = 0;
-  for (let i = 32; i < 64; i++) timestampHash = (timestampHash << 1) | bits[i];
-  
-  return { keyFingerprint: keyFingerprint >>> 0, timestampHash: timestampHash >>> 0 };
+  const match = code.match(/\blocal\s+_sa_wm_([0-9a-z]{7})_([0-9a-z]{7})\s*=\s*\d+/i);
+  if (!match) return null;
+
+  const keyFingerprint = parseInt(match[1], 36) >>> 0;
+  const timestampHash = parseInt(match[2], 36) >>> 0;
+
+  if (Number.isNaN(keyFingerprint) || Number.isNaN(timestampHash)) return null;
+  return { keyFingerprint, timestampHash };
 }
 
 // =====================================================
