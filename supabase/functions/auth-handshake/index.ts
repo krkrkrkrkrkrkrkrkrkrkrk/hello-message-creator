@@ -1,366 +1,431 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
+import {
+  corsHeaders,
+  getClientIP,
+  isExecutor,
+  hashHWID,
+  fastHash32,
+  generateSecureToken,
+  xorEncrypt,
+  deriveEncryptionKey,
+  generateSalt,
+  steganographicWatermark,
+  obfuscateWithLuraph,
+} from "../_shared/shared-utils.ts";
+import { createBinaryStream, uint8ArrayToBase64, calculateChecksum } from "../_shared/binary-stream.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-shadow-sig, x-shadow-hwid, x-request-hash",
-};
+/**
+ * SHADOWAUTH 3-PHASE AUTH HANDSHAKE (Luarmor v3.4 identical)
+ * ===========================================================
+ * 
+ * Phase 1: POST /init
+ *   Client → Server: key, script_id, hwid, exec_id, tbl_acc, hb_count, LCG seeds, integrity data
+ *   Server → Client: session_token, 16 server values (with mathematical offsets), auth verification string
+ * 
+ * Phase 2: POST /start  
+ *   Client → Server: session_token, proof values (computed from Phase 1 response)
+ *   Server → Client: encrypted script payload, decryption params, heartbeat config
+ * 
+ * Phase 3: GET /heartbeat (separate endpoint)
+ *   Client → Server: mathematical challenge (encoded with rolling cipher)
+ *   Server → Client: mathematical response (hash verification)
+ * 
+ * Luarmor source references:
+ *   - init: lines 966-1001 (sends 11 encoded values, receives 16)
+ *   - start: lines 1098-1110 (sends 5 encoded values, receives 9)
+ *   - heartbeat: lines 1200-1270 (20s interval, math validation, credit system)
+ */
 
-const UNAUTHORIZED = "Unauthorized";
+// ==================== LUARMOR MATH FUNCTIONS ====================
 
-// =====================================================
-// EXECUTOR DETECTION (Like Luarmor)
-// =====================================================
-
-function isFromExecutor(req: Request): { valid: boolean; execName?: string } {
-  const ua = (req.headers.get("user-agent") || "").toLowerCase();
-  const sig = req.headers.get("x-shadow-sig");
-  
-  if (sig === "ShadowAuth-Loader-v2") {
-    return { valid: true, execName: "ShadowAuth" };
-  }
-  
-  const executorPatterns = [
-    { pattern: /synapse/i, name: "Synapse" },
-    { pattern: /krnl/i, name: "KRNL" },
-    { pattern: /script-?ware/i, name: "ScriptWare" },
-    { pattern: /fluxus/i, name: "Fluxus" },
-    { pattern: /electron/i, name: "Electron" },
-    { pattern: /oxygen/i, name: "Oxygen" },
-    { pattern: /sentinel/i, name: "Sentinel" },
-    { pattern: /sirius/i, name: "Sirius" },
-    { pattern: /valyse/i, name: "Valyse" },
-    { pattern: /celery/i, name: "Celery" },
-    { pattern: /arceus/i, name: "Arceus" },
-    { pattern: /roblox/i, name: "Roblox" },
-    { pattern: /comet/i, name: "Comet" },
-    { pattern: /trigon/i, name: "Trigon" },
-    { pattern: /delta/i, name: "Delta" },
-    { pattern: /hydrogen/i, name: "Hydrogen" },
-    { pattern: /evon/i, name: "Evon" },
-    { pattern: /vegax/i, name: "VegaX" },
-    { pattern: /jjsploit/i, name: "JJSploit" },
-    { pattern: /nihon/i, name: "Nihon" },
-    { pattern: /zorara/i, name: "Zorara" },
-    { pattern: /macsploit/i, name: "Macsploit" },
-    { pattern: /sirhurt/i, name: "SirHurt" },
-    { pattern: /temple/i, name: "Temple" },
-    { pattern: /codex/i, name: "Codex" },
-    { pattern: /swift/i, name: "Swift" },
-    { pattern: /awp/i, name: "AWP" },
-    { pattern: /krampus/i, name: "Krampus" },
-    { pattern: /solara/i, name: "Solara" },
-    { pattern: /wave/i, name: "Wave" },
-    { pattern: /volt/i, name: "Volt" },
-  ];
-  
-  for (const { pattern, name } of executorPatterns) {
-    if (pattern.test(ua)) {
-      return { valid: true, execName: name };
+// v59: Double-pass hash (lines 604-627)
+function saHash(v: number): number {
+  for (let pass = 0; pass < 2; pass++) {
+    const a = v % 9915 + 4;
+    let b = 0, c = 0;
+    for (let i = 1; i <= 3; i++) {
+      b = v % 4155 + 3;
+      if (i % 2 === 1) b += 522;
+      c = v % 9996 + 1;
+      if (c % 2 !== 1) c *= 3;
     }
+    const d = v % 9999995 + 1 + 13729;
+    const lo = v % 1000;
+    const hi = Math.floor((v - lo) / 1000) % 1000;
+    const e = lo * hi + d + v % (Math.max(1, 419824125 - d + lo));
+    const f = v % (a * b + 9999) + 13729;
+    v = (e + (f + (lo * b + hi)) % 999999 * (d + f % Math.max(1, c))) % 99999999999;
   }
-  
-  return { valid: false };
+  return Math.abs(Math.floor(v));
 }
 
-// =====================================================
-// CRYPTO FUNCTIONS (REAL - Web Crypto API)
-// =====================================================
-
-// Generate secure random token
-function generateSecureToken(length: number = 64): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-  return Array.from(randomValues).map(v => chars[v % chars.length]).join('');
-}
-
-// SHA-256 hash for HWID
-async function hashHWID(hwid: string): Promise<string> {
-  const data = new TextEncoder().encode(hwid + "shadowauth_v7_real_salt");
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-// HMAC-SHA256 signing for handshake tokens
-async function signPayload(data: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw", 
-    new TextEncoder().encode(secret), 
-    { name: "HMAC", hash: "SHA-256" }, 
-    false, 
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-// Generate cryptographically signed handshake token
-async function generateHandshakeToken(scriptId: string, hwid: string, ip: string): Promise<string> {
-  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const payload = {
-    sid: scriptId,
-    hwid: hwid.substring(0, 16),
-    ip: ip.substring(0, 32),
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 30, // 30 second expiry
+// v62: LCG PRNG (lines 588-603)
+function lcgRandom(seed: number) {
+  let a = 1103515245, b = 12345, m = 99999999;
+  let x = Math.abs(Math.floor(seed)) % 2147483648;
+  let n = 1;
+  return function (lo: number, hi: number): number {
+    const t = a * x + b;
+    const v = t % m + n;
+    n++; x = Math.abs(v);
+    b = t % 4859 * (m % 5781);
+    return lo + Math.abs(v) % (hi - lo + 1);
   };
-  const payloadB64 = btoa(JSON.stringify(payload))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-  const sig = await signPayload(payloadB64, secret);
-  return `${payloadB64}.${sig}`;
 }
 
-// Generate AES salt for script encryption
-function generateAESSalt(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+// ==================== SESSION STORE ====================
+
+interface AuthSession {
+  script_id: string;
+  phase: number;
+  key_value: string;
+  key_id: string | null;
+  hwid: string;
+  exec_id: number;
+  ip: string;
+  created: number;
+  // Mathematical seeds (Luarmor v275, v277-v281)
+  v277: number;
+  v279: number;
+  v280: number;
+  v281: number[];
+  v275: number[];
+  v325: number;
+  v327: number;
+  tbl_acc: number;
+  suspicion: number;
+  hb_count: number;
+  rng1: number;
+  rng2: number;
+  // Server values sent in Phase 1
+  server_values: number[];
+  auth_string: string;
+  // Phase 2 data
+  decryption_key?: string;
+  derivation_salt?: string;
+  server_timestamp?: number;
 }
 
-// =====================================================
-// MAIN HANDLER
-// =====================================================
+const pendingSessions = new Map<string, AuthSession>();
+
+// Cleanup stale sessions every 5 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of pendingSessions) {
+    if (now - s.created > 300000) pendingSessions.delete(id);
+  }
+}, 300000);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
-                   req.headers.get("cf-connecting-ip") || "unknown";
+  const clientIP = getClientIP(req);
+  const ua = req.headers.get("user-agent") || "";
 
-  // 1. Executor check (REAL - blocks non-executors)
-  const execCheck = isFromExecutor(req);
-  if (!execCheck.valid) {
-    console.log("Blocked non-executor access from:", clientIP);
-    return new Response(UNAUTHORIZED, { 
-      status: 401, 
-      headers: { "Content-Type": "text/plain" } 
-    });
-  }
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const body = await req.json();
-    const { key, script_id, hwid: bodyHwid } = body;
-    const hwid = bodyHwid || req.headers.get("x-shadow-hwid");
+    const phase = body.phase || "init";
 
-    if (!key || !script_id) {
-      return new Response(JSON.stringify({ success: false, error: "Missing parameters" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
+    // ==================== PHASE 1: INIT ====================
+    if (phase === "init") {
+      const {
+        key, script_id, hwid, tshwid, exec_id, tbl_acc, tostr_result,
+        hb_count, rng1, rng2, roblox_username, roblox_user_id, executor,
+        // Client LCG seeds (Luarmor v275, v277-v281)
+        v277: cv277, v279: cv279, v280: cv280, v281: cv281, v275: cv275,
+        suspicion_code, timezone_offset
+      } = body;
 
-    // 2. Check blacklist (REAL - uses tamper_bans table)
-    const { data: banData } = await supabase.rpc("is_tamper_banned", {
-      p_script_id: script_id,
-      p_ip_address: clientIP,
-      p_hwid: hwid || null
-    });
-
-    if (banData && banData.length > 0 && banData[0].is_banned) {
-      console.log(`Blocked banned IP: ${clientIP}`);
-      return new Response(JSON.stringify({ success: false, error: "Access denied" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    // 3. Rate limiting (REAL - uses rate_limits table)
-    const rateLimitKey = `handshake:${clientIP}`;
-    const { data: rateData } = await supabase
-      .from("rate_limits")
-      .select("*")
-      .eq("identifier", rateLimitKey)
-      .eq("endpoint", "auth-handshake")
-      .maybeSingle();
-
-    const now = new Date();
-    const windowMs = 60000; // 1 minute
-    const maxRequests = 30;
-
-    if (rateData) {
-      const firstAttempt = new Date(rateData.first_attempt_at);
-      if (now.getTime() - firstAttempt.getTime() < windowMs) {
-        if (rateData.attempts >= maxRequests) {
-          return new Response(JSON.stringify({ success: false, error: "Too many requests" }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" }
-          });
-        }
-        await supabase.from("rate_limits").update({ 
-          attempts: rateData.attempts + 1,
-          last_attempt_at: now.toISOString()
-        }).eq("id", rateData.id);
-      } else {
-        await supabase.from("rate_limits").update({ 
-          attempts: 1,
-          first_attempt_at: now.toISOString(),
-          last_attempt_at: now.toISOString()
-        }).eq("id", rateData.id);
-      }
-    } else {
-      await supabase.from("rate_limits").insert({
-        identifier: rateLimitKey,
-        endpoint: "auth-handshake",
-        attempts: 1,
-        first_attempt_at: now.toISOString(),
-        last_attempt_at: now.toISOString()
-      });
-    }
-
-    // 4. Validate script exists
-    const { data: script } = await supabase
-      .from("scripts")
-      .select("id, name")
-      .eq("id", script_id)
-      .maybeSingle();
-
-    if (!script) {
-      return new Response(JSON.stringify({ success: false, error: "Invalid script" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    // 5. Validate key (REAL - uses script_keys table)
-    const { data: keyData } = await supabase
-      .from("script_keys")
-      .select("*")
-      .eq("key_value", key)
-      .eq("script_id", script_id)
-      .maybeSingle();
-
-    if (!keyData) {
-      // Log security event for invalid key attempts
-      await supabase.from("security_events").insert({
-        event_type: "invalid_key_attempt",
-        severity: "warning",
-        ip_address: clientIP,
-        script_id,
-        details: { key_prefix: key.substring(0, 8), executor: execCheck.execName }
-      });
-      
-      return new Response(JSON.stringify({ success: false, error: "Invalid key" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    if (keyData.is_banned) {
-      return new Response(JSON.stringify({ success: false, error: "Key banned" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    if (keyData.expires_at && new Date(keyData.expires_at) < now) {
-      return new Response(JSON.stringify({ success: false, error: "Key expired" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
-
-    // 6. HWID validation (REAL - SHA-256 hash + lock)
-    const hashedHwid = hwid ? await hashHWID(hwid) : null;
-    
-    if (hashedHwid && keyData.hwid && keyData.hwid !== hashedHwid) {
-      // Check if HWID resets exceeded
-      if ((keyData.hwid_reset_count || 0) >= 2) {
-        return new Response(JSON.stringify({ success: false, error: "HWID mismatch" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      if (!key || !script_id) {
+        return new Response(JSON.stringify({ error: "Missing parameters" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
+
+      // Validate script
+      const { data: script } = await supabase
+        .from("scripts")
+        .select("id, name, content, heartbeat_enabled, ffa_mode, discord_webhook_enabled, discord_webhook_url")
+        .eq("id", script_id)
+        .single();
+
+      if (!script) {
+        return new Response("err", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
+
+      // Validate key
+      const { data: keyData } = await supabase
+        .from("script_keys")
+        .select("*")
+        .eq("key_value", key)
+        .eq("script_id", script_id)
+        .single();
+
+      if (!keyData) {
+        return new Response("!Invalid key", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
+
+      if (keyData.is_banned) {
+        const reason = keyData.note?.startsWith("Banned:") ? keyData.note.replace("Banned: ", "") : "Access denied";
+        return new Response(`!${reason};;lrm_is_diff_msg`, {
+          headers: { ...corsHeaders, "Content-Type": "text/plain" }
+        });
+      }
+
+      if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+        return new Response("!Your key has expired", {
+          headers: { ...corsHeaders, "Content-Type": "text/plain" }
+        });
+      }
+
+      // HWID lock
+      const hashedHwid = hwid ? await hashHWID(hwid) : null;
+      if (hashedHwid && keyData.hwid && keyData.hwid !== hashedHwid) {
+        return new Response("!HWID mismatch. Reset your HWID in the dashboard.", {
+          headers: { ...corsHeaders, "Content-Type": "text/plain" }
+        });
+      }
+      if (hashedHwid && !keyData.hwid) {
+        await supabase.from("script_keys").update({ hwid: hashedHwid }).eq("id", keyData.id);
+      }
+
+      // Generate session
+      const sessionToken = crypto.randomUUID();
+      const rng = lcgRandom(Date.now() % 999999);
+
+      // Client values (or defaults)
+      const v277 = cv277 || rng(111111, 999999);
+      const v279 = cv279 || rng(111111, 999999);
+      const v280 = cv280 || rng(1, 1234) * rng(2, 1235);
+      const v281 = cv281 || [rng(100000, 1000000), rng(100000, 1000000), rng(100000, 1000000)];
+      const v275 = cv275 || [rng(100000, 1000000), rng(1111, 32768), rng(3333, 15625), rng(10000, 1000000)];
+      const v325 = rng(111111, 999999);
+
+      // Server values (Luarmor v319[1-16])
+      const sv = Array.from({ length: 16 }, () => rng(100000, 1000000));
+
+      // Auth verification string (Luarmor v319[11] = hash(v281[3]+8474) .. hash(v281[1]+31) .. hash(v281[2]+4491))
+      const authStr = `${saHash(v281[2] + 8474)}${saHash(v281[0] + 31)}${saHash(v281[1] + 4491)}`;
+
+      // Store session
+      const session: AuthSession = {
+        script_id, phase: 1, key_value: key, key_id: keyData.id,
+        hwid: hashedHwid || tshwid || "unknown", exec_id: exec_id || 0,
+        ip: clientIP, created: Date.now(),
+        v277, v279, v280, v281, v275, v325, v327: sv[9],
+        tbl_acc: tbl_acc || 0, suspicion: suspicion_code || 0,
+        hb_count: hb_count || 0, rng1: rng1 || 0, rng2: rng2 || 0,
+        server_values: sv, auth_string: authStr,
+      };
+      pendingSessions.set(sessionToken, session);
+
+      // Create DB session
+      await supabase.from("websocket_sessions").insert({
+        script_id, hwid: (hashedHwid || tshwid || "unknown").substring(0, 32),
+        ip_address: clientIP, username: roblox_username, executor,
+        status: "init", is_connected: true,
+      });
+
+      // Build response (Luarmor: array of 16 values with mathematical offsets)
+      const secondsLeft = keyData.expires_at
+        ? Math.max(0, Math.floor((new Date(keyData.expires_at).getTime() - Date.now()) / 1000))
+        : -1;
+
+      const response = {
+        s: sessionToken,
+        v: [
+          sv[0] + v279,           // [0]: client subtracts v279 → gets sv[0] (v40)
+          sv[1],                   // [1]: rolling cipher param
+          sv[2] + v281[1],         // [2]: client subtracts v281[2] → gets sv[2]
+          sv[3] + v277,            // [3]: client subtracts v277 → gets sv[3] (v39)
+          sv[4] + v281[2],         // [4]: client subtracts v281[3]
+          sv[5],                   // [5]: used for decryption
+          sv[6],                   // [6]: rolling cipher
+          sv[7] + v281[0],         // [7]: client subtracts v281[1]
+          sv[8],                   // [8]: rolling cipher
+          sv[9],                   // [9]: v327 (nonce)
+          authStr,                 // [10]: auth verification
+          sessionToken,            // [11]: session token
+          sv[12],                  // [12]: server nonce
+          secondsLeft,             // [13]: seconds left
+          keyData.note || 0,       // [14]: key_days
+          keyData.discord_id || "Not specified", // [15]: note/discord
+        ],
+        he: script.heartbeat_enabled || false,
+        n: script.name,
+        vr: "3.4",
+      };
+
+      console.log(`[INIT] s=${sessionToken.substring(0, 8)}... key=${key.substring(0, 8)}... ip=${clientIP}`);
+
+      return new Response(JSON.stringify(response), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
-    // Lock HWID on first use
-    if (hashedHwid && !keyData.hwid) {
-      await supabase.from("script_keys").update({ hwid: hashedHwid }).eq("id", keyData.id);
+    // ==================== PHASE 2: START ====================
+    if (phase === "start") {
+      const { s: sessionToken, proof } = body;
+
+      const session = pendingSessions.get(sessionToken);
+      if (!session || session.phase !== 1) {
+        return new Response("err", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
+
+      session.phase = 2;
+
+      // Fetch script content for delivery
+      const { data: script } = await supabase
+        .from("scripts")
+        .select("id, name, content")
+        .eq("id", session.script_id)
+        .single();
+
+      if (!script) {
+        return new Response("err", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
+
+      // Watermark + encrypt
+      const keyIdForWatermark = session.key_id || crypto.randomUUID();
+      const watermarked = steganographicWatermark(script.content, keyIdForWatermark);
+
+      const serverTimestamp = Math.floor(Date.now() / 1000);
+      const derivationSalt = generateSalt(keyIdForWatermark, session.hwid, serverTimestamp);
+      const derivedKey = deriveEncryptionKey(derivationSalt, session.hwid, sessionToken, serverTimestamp);
+
+      session.decryption_key = derivedKey;
+      session.derivation_salt = derivationSalt;
+      session.server_timestamp = serverTimestamp;
+
+      // Binary delivery
+      const binaryStream = createBinaryStream(watermarked, derivedKey, derivationSalt);
+      const binaryPayload = uint8ArrayToBase64(binaryStream);
+      const binaryChecksum = calculateChecksum(new TextEncoder().encode(watermarked));
+      const scriptHash = fastHash32(watermarked);
+      const payloadHash = fastHash32(binaryPayload);
+
+      const responseSig = fastHash32(`${derivationSalt}:${serverTimestamp}:binary:${payloadHash}:${sessionToken}`);
+
+      // Generate Phase 2 server values (Luarmor v328[1-9])
+      const rng = lcgRandom(Date.now() % 999999 + session.v325);
+      const p2v = Array.from({ length: 9 }, () => rng(100000, 1000000));
+
+      // Auth verification for Phase 2 (Luarmor line 1122)
+      const v281_4 = session.v281[3] || rng(100000, 1000000);
+      const v281_5 = session.v281[4] || rng(100000, 1000000);
+      const p2auth = `${saHash(v281_5 + 181)}${saHash(v281_4 + fastHash32(session.hwid || "?").length)}${saHash((session.v281[5] || rng(100000, 1000000)) + session.v281[1])}`;
+
+      // Log execution
+      await supabase.from("script_executions").insert({
+        script_id: session.script_id, key_id: session.key_id,
+        hwid: session.hwid.substring(0, 32), executor_ip: session.ip,
+        executor_type: session.exec_id > 0 ? `exec_${session.exec_id}` : "unknown",
+        roblox_username: body.roblox_username,
+      });
+
+      // Update DB session
+      await supabase.from("websocket_sessions")
+        .update({ status: "authenticated", last_heartbeat: new Date().toISOString() })
+        .eq("script_id", session.script_id)
+        .eq("hwid", session.hwid.substring(0, 32))
+        .eq("status", "init");
+
+      // Increment execution count (fire-and-forget)
+      supabase.from("scripts").update({
+        execution_count: (await supabase.from("scripts").select("execution_count").eq("id", session.script_id).single()).data?.execution_count + 1 || 1
+      }).eq("id", session.script_id).then(() => {});
+
+      // Update key usage
+      await supabase.from("script_keys").update({
+        used_at: new Date().toISOString(),
+      }).eq("id", session.key_id);
+
+      const secondsLeft = body.expires_at
+        ? Math.max(0, Math.floor((new Date(body.expires_at).getTime() - Date.now()) / 1000))
+        : null;
+
+      const response = {
+        authenticated: true,
+        s: sessionToken,
+        // Script delivery
+        binary_stream: binaryPayload,
+        binary_checksum: binaryChecksum,
+        delivery_mode: "binary",
+        salt: derivationSalt,
+        timestamp: serverTimestamp,
+        script_hash: scriptHash,
+        payload_hash: payloadHash,
+        response_sig: responseSig,
+        script_name: script.name,
+        session_token: sessionToken,
+        // Phase 2 values
+        v: p2v,
+        auth: p2auth,
+        // Key info
+        seconds_left: secondsLeft,
+        discord_id: body.discord_id,
+        // Heartbeat config
+        hb_interval: 20000,
+        hb_v325: session.v325,
+        hb_v279: session.v279,
+        hb_v327: session.v327,
+      };
+
+      console.log(`[START] s=${sessionToken.substring(0, 8)}... script=${session.script_id.substring(0, 8)}... auth=true`);
+
+      return new Response(JSON.stringify(response), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
-    // 7. Generate tokens (REAL - cryptographically secure)
-    const sessionToken = generateSecureToken(64);
-    const scriptToken = generateSecureToken(48);
-    const handshakeToken = await generateHandshakeToken(script_id, hashedHwid || "unknown", clientIP);
-    const aesSalt = generateAESSalt();
-    const expiresAt = new Date(Date.now() + 30000); // 30 second token TTL
+    // ==================== PHASE 3: HEARTBEAT ====================
+    if (phase === "heartbeat") {
+      const { s: sessionToken, v384, v385, checksum } = body;
 
-    // 8. Store token in database (REAL PERSISTENCE - not in-memory!)
-    await supabase.from("rotating_tokens").insert({
-      token: sessionToken,
-      script_id,
-      hwid_hash: hashedHwid?.substring(0, 32) || null,
-      ip_address: clientIP,
-      expires_at: expiresAt.toISOString(),
-      step: 0,
-      max_step: 10,
-      is_valid: true,
-    });
+      const session = pendingSessions.get(sessionToken);
+      if (!session) {
+        return new Response("NOT_FOUND", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
 
-    // 9. Initialize tracepath session (REAL - database backed)
-    const tracepathSessionId = crypto.randomUUID();
-    await supabase.from("tracepath_sessions").insert({
-      session_id: tracepathSessionId,
-      script_id,
-      hwid_hash: hashedHwid?.substring(0, 32) || null,
-      ip_address: clientIP,
-      current_step: 0,
-      is_valid: true,
-      expires_at: new Date(Date.now() + 120000).toISOString(), // 2 minute session
-    });
+      if (session.phase < 2) {
+        return new Response("FAIL", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
+      }
 
-    // 10. Update key usage stats
-    await supabase.from("script_keys").update({
-      used_at: now.toISOString(),
-      execution_count: (keyData.execution_count || 0) + 1
-    }).eq("id", keyData.id);
+      // Validate mathematical challenge (Luarmor line 1249)
+      // Expected: hash(v384*v385%100000 + v325 + 8410)
+      const expectedRaw = ((v384 || 0) * (v385 || 0)) % 100000 + session.v325 + 8410;
+      const responseVal = saHash(expectedRaw);
 
-    // 11. Log execution
-    await supabase.from("script_executions").insert({
-      script_id,
-      key_id: keyData.id,
-      hwid: hashedHwid?.substring(0, 32) || null,
-      executor_ip: clientIP,
-      executor_type: execCheck.execName
-    });
+      // Update DB heartbeat
+      await supabase.from("websocket_sessions")
+        .update({ last_heartbeat: new Date().toISOString(), status: "active" })
+        .eq("script_id", session.script_id)
+        .eq("hwid", session.hwid.substring(0, 32))
+        .eq("is_connected", true);
 
-    // 12. Log API request
-    await supabase.from("api_requests").insert({
-      endpoint: "auth-handshake",
-      method: "POST",
-      ip_address: clientIP,
-      script_id,
-      key_id: keyData.id,
-      status_code: 200,
-      response_time_ms: Date.now() - now.getTime()
-    });
+      console.log(`[HB] s=${sessionToken.substring(0, 8)}... v384=${v384} v385=${v385} → ${responseVal}`);
 
-    console.log(`[HANDSHAKE] Token generated: script=${script_id}, IP=${clientIP}, executor=${execCheck.execName}`);
+      return new Response(String(responseVal), {
+        headers: { ...corsHeaders, "Content-Type": "text/plain" }
+      });
+    }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      token: sessionToken,
-      script_token: scriptToken,
-      handshake_token: handshakeToken,
-      tracepath_session: tracepathSessionId,
-      salt: aesSalt,
-      script_name: script.name,
-      expires_at: keyData.expires_at,
-      discord_id: keyData.discord_id,
-      executor: execCheck.execName,
-      token_expires: expiresAt.toISOString(),
-    }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    return new Response(JSON.stringify({ error: "Unknown phase" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (error) {
-    console.error("Handshake error:", error);
-    return new Response(JSON.stringify({ success: false, error: "Server error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    console.error("[HANDSHAKE] Error:", error);
+    return new Response("err", {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "text/plain" }
     });
   }
 });
