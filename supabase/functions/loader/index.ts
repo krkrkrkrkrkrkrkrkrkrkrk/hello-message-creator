@@ -111,7 +111,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "20.0.0";
+const LOADER_VERSION = "21.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -227,7 +227,7 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
   // Anti-hook code with report URL injected
   const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g, reportUrl);
 
-  return `--[[ ShadowAuth V19 ]]
+  return `--[[ Protected Script ]]
 local _SA_CLOCK = os.clock()
 
 ${generateSafeLoadstring()}
@@ -578,7 +578,7 @@ local ${funcName} = function()
       rng2 = math.random(10000, 99999),
       delivery_mode = "binary",
       init_time = _initTime,
-      loader_version = "19"
+      loader_version = "21"
     })
 
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
@@ -716,7 +716,7 @@ local ${funcName} = function()
         if fn then
           local authTime = os.clock() - _SA_CLOCK
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
-          print("[ShadowAuth] Authenticated in " .. string.format("%.3f", authTime) .. "s")
+          print("[Auth] Complete in " .. string.format("%.3f", authTime) .. "s")
           task.wait(0.2)
           closeGui(true)
           _G.__SA = true
@@ -758,19 +758,69 @@ else return _result end
 }
 
 // =====================================================
-// BOOTSTRAP: Ultra-compact Layer 1 that fetches the full loader
-// Same as Luarmor: tiny bootstrap → one fetch → all code
+// BOOTSTRAP: Luarmor-grade obfuscated bootstrap
+// All strings (URL, script ID, version) are XOR-encrypted
+// Includes loadstring hook detection + _bsdata0 equivalent
 // =====================================================
+
+function xorEncryptString(str: string, key: number): string {
+  const bytes: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    bytes.push(str.charCodeAt(i) ^ ((key + i * 7 + 13) % 256));
+  }
+  return bytes.map(b => `\\${b}`).join('');
+}
+
+function generateBsdata(scriptId: string, version: string): { luaDecl: string; key: number } {
+  // Generate encrypted session data like Luarmor's _bsdata0
+  const key = Math.floor(Math.random() * 200) + 50;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const sessionSeed = Math.floor(Math.random() * 999999999);
+  const checksum = (timestamp * 7 + sessionSeed) % 99999999;
+  
+  return {
+    luaDecl: `_0x${sessionSeed.toString(16).slice(0,6)}={${timestamp},${sessionSeed},${checksum},"${xorEncryptString(scriptId, key)}","${xorEncryptString(version, key)}",${key}};`,
+    key
+  };
+}
+
 function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const antiEnv = generateCompactAntiEnvCheck();
   const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const cacheBuildVersion = `${initVersion}-lv${LOADER_VERSION}`;
+  
+  // XOR key for string encryption
+  const xorKey = Math.floor(Math.random() * 200) + 30;
+  
+  // Encrypt sensitive strings
+  const encUrl = xorEncryptString(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}`, xorKey);
+  const encFolder = xorEncryptString(cacheFolder, xorKey);
+  const encVersion = xorEncryptString(cacheBuildVersion, xorKey);
+  
+  // Generate _bsdata0 equivalent
+  const bsdata = generateBsdata(scriptId, cacheBuildVersion);
+  
+  // Random variable names
+  const vDec = generateRandomVarName(8);
+  const vLs = generateRandomVarName(6);
+  const vF = generateRandomVarName(5);
+  const vB = generateRandomVarName(5);
+  const vA = generateRandomVarName(5);
+  const vUrl = generateRandomVarName(7);
+  const vHook = generateRandomVarName(6);
 
-  // Bootstrap with aggressive cache cleanup on version mismatch
-  return `${antiEnv}
-local _LS=loadstring;pcall(function()if getgenv then _LS=getgenv().loadstring or _LS end end);
-local f,b="${cacheFolder}","${cacheBuildVersion}";local a;pcall(function()a=readfile(f.."/c-"..b..".lua")end) if a and #a>2000 then local ok,fn=pcall(_LS,a);if ok and fn then return fn() end;a=nil end;
-if not a then pcall(makefolder,f);pcall(function()for _,v in pairs(listfiles('./'..f))do pcall(delfile,v)end end);local ok,err=pcall(function() a=game:HttpGet("${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}") end);if (not ok or not a or #a<100) then local _u="${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}&r="..tostring(math.floor(os.clock()*100000));local ok2,err2=pcall(function() a=game:HttpGet(_u) end);if not ok2 then warn("[SA] Fetch failed: "..tostring(err2 or err)) return end end;if not a or #a<100 then warn("[SA] Empty response") return end;pcall(function()writefile(f.."/c-"..b..".lua",a)end);local fn,lerr=_LS(a);if fn then return fn() else warn("[SA] Load failed: "..tostring(lerr)) end end`;
+  // Bootstrap with:
+  // 1. _bsdata0 encrypted session data
+  // 2. loadstring hook detection (ce_like_loadstring_fn pattern)
+  // 3. XOR-encrypted URL/folder/version (no plaintext strings)
+  // 4. Cache with version-aware cleanup
+  // 5. No identifying prefixes or labels
+  return `${bsdata.luaDecl}
+local ${vHook}=false;pcall(function()if ce_like_loadstring_fn then ${vHook}=true end end);
+local ${vDec}=function(s,k)local r=""for i=1,#s do r=r..string.char(bit32.bxor(string.byte(s,i),(k+(i-1)*7+13)%256))end return r end;
+local ${vLs}=loadstring;pcall(function()if ce_like_loadstring_fn then ${vLs}=ce_like_loadstring_fn end end);pcall(function()if getgenv then ${vLs}=getgenv().loadstring or ${vLs} end end);
+pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("remotespy")then error()end end);
+local ${vF}=${vDec}("${encFolder}",${xorKey});local ${vB}=${vDec}("${encVersion}",${xorKey});local ${vA};pcall(function()${vA}=readfile(${vF}.."/c-"..${vB}..".lua")end);if ${vA} and #${vA}>2000 then local ok,fn=pcall(${vLs},${vA});if ok and fn then return fn()end;${vA}=nil end;
+if not ${vA} then pcall(makefolder,${vF});pcall(function()for _,v in pairs(listfiles('./'..${vF}))do pcall(delfile,v)end end);local ${vUrl}=${vDec}("${encUrl}",${xorKey});local ok,err=pcall(function()${vA}=game:HttpGet(${vUrl})end);if(not ok or not ${vA} or #${vA}<100)then local _u=${vUrl}.."&r="..tostring(math.floor(os.clock()*100000));pcall(function()${vA}=game:HttpGet(_u)end)end;if not ${vA} or #${vA}<100 then return end;pcall(function()writefile(${vF}.."/c-"..${vB}..".lua",${vA})end);local fn=${vLs}(${vA});if fn then return fn()end end`;
 }
 
 // =====================================================
