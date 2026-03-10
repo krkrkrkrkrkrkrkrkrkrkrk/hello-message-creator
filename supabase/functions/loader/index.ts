@@ -578,7 +578,7 @@ local ${funcName} = function()
       rng2 = math.random(10000, 99999),
       delivery_mode = "binary",
       init_time = _initTime,
-      loader_version = "19"
+      loader_version = "21"
     })
 
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
