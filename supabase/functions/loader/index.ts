@@ -354,8 +354,8 @@ local ${funcName} = function()
   local gui, mainFrame, statusLabel, expiryLabel
   local function createGui()
     pcall(function()
-      if game:GetService("CoreGui"):FindFirstChild("ShadowAuthLoader") then
-        game:GetService("CoreGui"):FindFirstChild("ShadowAuthLoader"):Destroy()
+      if game:GetService("CoreGui"):FindFirstChild("_LDR_") then
+        game:GetService("CoreGui"):FindFirstChild("_LDR_"):Destroy()
       end
     end)
     gui = Instance.new("ScreenGui")
