@@ -785,13 +785,16 @@ function generateBsdata(scriptId: string, version: string): { luaDecl: string; k
 }
 
 function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: string): string {
-  const cacheFolder = `sc_${scriptId.substring(0, 8)}`;
   const cacheBuildVersion = `${initVersion}-lv${LOADER_VERSION}`;
   
   // XOR key for string encryption
   const xorKey = Math.floor(Math.random() * 200) + 30;
   
-  // Encrypt sensitive strings
+  // Generic folder name (like Luarmor's "static_content_XXXXXX")
+  const folderSeed = Math.floor(Math.random() * 999999);
+  const cacheFolder = `static_content_${folderSeed}`;
+  
+  // Encrypt ALL sensitive strings
   const encUrl = xorEncryptString(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}`, xorKey);
   const encFolder = xorEncryptString(cacheFolder, xorKey);
   const encVersion = xorEncryptString(cacheBuildVersion, xorKey);
@@ -799,7 +802,7 @@ function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: s
   // Generate _bsdata0 equivalent
   const bsdata = generateBsdata(scriptId, cacheBuildVersion);
   
-  // Random variable names
+  // Random variable names (no SA prefix)
   const vDec = generateRandomVarName(8);
   const vLs = generateRandomVarName(6);
   const vF = generateRandomVarName(5);
@@ -807,20 +810,23 @@ function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: s
   const vA = generateRandomVarName(5);
   const vUrl = generateRandomVarName(7);
   const vHook = generateRandomVarName(6);
+  const vOk = generateRandomVarName(4);
+  const vFn = generateRandomVarName(4);
 
   // Bootstrap with:
   // 1. _bsdata0 encrypted session data
   // 2. loadstring hook detection (ce_like_loadstring_fn pattern)
   // 3. XOR-encrypted URL/folder/version (no plaintext strings)
   // 4. Cache with version-aware cleanup
-  // 5. No identifying prefixes or labels
+  // 5. No identifying prefixes, labels, or warn messages
+  // 6. No plaintext URLs, script IDs, or version strings
   return `${bsdata.luaDecl}
 local ${vHook}=false;pcall(function()if ce_like_loadstring_fn then ${vHook}=true end end);
 local ${vDec}=function(s,k)local r=""for i=1,#s do r=r..string.char(bit32.bxor(string.byte(s,i),(k+(i-1)*7+13)%256))end return r end;
 local ${vLs}=loadstring;pcall(function()if ce_like_loadstring_fn then ${vLs}=ce_like_loadstring_fn end end);pcall(function()if getgenv then ${vLs}=getgenv().loadstring or ${vLs} end end);
-pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("remotespy")then error()end end);
-local ${vF}=${vDec}("${encFolder}",${xorKey});local ${vB}=${vDec}("${encVersion}",${xorKey});local ${vA};pcall(function()${vA}=readfile(${vF}.."/c-"..${vB}..".lua")end);if ${vA} and #${vA}>2000 then local ok,fn=pcall(${vLs},${vA});if ok and fn then return fn()end;${vA}=nil end;
-if not ${vA} then pcall(makefolder,${vF});pcall(function()for _,v in pairs(listfiles('./'..${vF}))do pcall(delfile,v)end end);local ${vUrl}=${vDec}("${encUrl}",${xorKey});local ok,err=pcall(function()${vA}=game:HttpGet(${vUrl})end);if(not ok or not ${vA} or #${vA}<100)then local _u=${vUrl}.."&r="..tostring(math.floor(os.clock()*100000));pcall(function()${vA}=game:HttpGet(_u)end)end;if not ${vA} or #${vA}<100 then return end;pcall(function()writefile(${vF}.."/c-"..${vB}..".lua",${vA})end);local fn=${vLs}(${vA});if fn then return fn()end end`;
+pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("remotespy")or _tb:find("simplespy")then while true do end end end);
+local ${vF}=${vDec}("${encFolder}",${xorKey});local ${vB}=${vDec}("${encVersion}",${xorKey});local ${vA};pcall(function()${vA}=readfile(${vF}.."/c-"..${vB}..".lua")end);if ${vA} and #${vA}>2000 then local ${vOk},${vFn}=pcall(${vLs},${vA});if ${vOk} and ${vFn} then return ${vFn}()end;${vA}=nil end;
+if not ${vA} then pcall(makefolder,${vF});pcall(function()for _,v in pairs(listfiles('./'..${vF}))do pcall(delfile,v)end end);local ${vUrl}=${vDec}("${encUrl}",${xorKey});local ${vOk}=pcall(function()${vA}=game:HttpGet(${vUrl})end);if(not ${vOk} or not ${vA} or #${vA}<100)then pcall(function()${vA}=game:HttpGet(${vUrl}.."&r="..tostring(math.floor(os.clock()*100000)))end)end;if not ${vA} or #${vA}<100 then return end;pcall(function()writefile(${vF}.."/c-"..${vB}..".lua",${vA})end);local ${vFn}=${vLs}(${vA});if ${vFn} then return ${vFn}()end end`;
 }
 
 // =====================================================

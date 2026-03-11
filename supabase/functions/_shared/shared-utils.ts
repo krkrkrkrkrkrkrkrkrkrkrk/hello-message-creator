@@ -461,8 +461,14 @@ export async function obfuscateWithLuraph(
     }
     
     const result = await dlResp.text();
-    console.log(`[Luraph] ${layerName} OK: ${code.length} → ${result.length} bytes (${((result.length/code.length)*100).toFixed(0)}%)`);
-    return { code: result, obfuscated: true };
+    // Strip Luraph header comment (reveals obfuscator identity)
+    let cleanResult = result.replace(/^--\s*This file was protected using Luraph[^\n]*\n?/i, '');
+    cleanResult = cleanResult.replace(/^--\s*\[https:\/\/lura\.ph\/?\]\s*\n?/i, '');
+    // Also strip any leading blank lines
+    cleanResult = cleanResult.replace(/^\s*\n/, '');
+    
+    console.log(`[Luraph] ${layerName} OK: ${code.length} → ${cleanResult.length} bytes (${((cleanResult.length/code.length)*100).toFixed(0)}%)`);
+    return { code: cleanResult, obfuscated: true };
 
   } catch (err) {
     console.error(`[LURAPH CRITICAL] Failed for ${layerName}:`, err);
