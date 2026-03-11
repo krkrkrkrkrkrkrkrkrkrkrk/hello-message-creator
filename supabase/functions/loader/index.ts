@@ -717,7 +717,6 @@ local ${funcName} = function()
         if fn then
           local authTime = os.clock() - _SA_CLOCK
           updateStatus("🚀 Executing...", Color3.fromRGB(100,220,150))
-          print("[Auth] Complete in " .. string.format("%.3f", authTime) .. "s")
           task.wait(0.2)
           closeGui(true)
           _G.__SA = true
