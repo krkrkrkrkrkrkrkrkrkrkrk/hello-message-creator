@@ -359,7 +359,7 @@ local ${funcName} = function()
       end
     end)
     gui = Instance.new("ScreenGui")
-    gui.Name = "ShadowAuthLoader"
+    gui.Name = "_LDR_"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     pcall(function() gui.Parent = game:GetService("CoreGui") end)
