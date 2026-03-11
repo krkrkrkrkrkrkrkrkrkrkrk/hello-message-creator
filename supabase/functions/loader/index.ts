@@ -445,7 +445,7 @@ local ${funcName} = function()
     brand.Font = Enum.Font.GothamBold
     brand.TextSize = 9
     brand.TextColor3 = Color3.fromRGB(80,140,200)
-    brand.Text = "SHADOWAUTH"
+    brand.Text = ""
     brand.TextXAlignment = Enum.TextXAlignment.Right
     brand.Parent = mainFrame
 
