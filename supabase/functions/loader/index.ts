@@ -228,7 +228,7 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
   // Anti-hook code with report URL injected
   const antiHookCode = generateAntiHookCode().replace(/__REPORT_URL__/g, reportUrl);
 
-  return `--[[ Protected Script ]]
+  return `
 local _SA_CLOCK = os.clock()
 
 ${generateSafeLoadstring()}
