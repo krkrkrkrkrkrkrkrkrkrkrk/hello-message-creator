@@ -965,9 +965,10 @@ serve(async (req) => {
         }
       } catch (_e) { /* non-critical */ }
 
-      // Generate + Luraph obfuscate
+      // Generate + Minify + Luraph obfuscate
       const raw = generateFullLoader(supabaseUrl!, scriptId, initVersion);
-      const luraphResult = await obfuscateWithLuraph(raw, `full_${scriptId.substring(0, 8)}`);
+      const minified = minifyLua(raw);
+      const luraphResult = await obfuscateWithLuraph(minified, `full_${scriptId.substring(0, 8)}`);
       const protected_ = luraphResult.code;
 
       loaderCache.set(cacheKey, { code: protected_, timestamp: Date.now() });
