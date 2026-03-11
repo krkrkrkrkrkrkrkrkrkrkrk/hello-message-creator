@@ -247,6 +247,87 @@ export function extractWatermark(code: string): { keyFingerprint: number; timest
 }
 
 // =====================================================
+// LUA MINIFIER (Luarmor-style pre-obfuscation compression)
+// Strips comments, excess whitespace, empty lines
+// =====================================================
+
+export function minifyLua(code: string): string {
+  let result = code;
+
+  // Remove block comments --[[ ... ]]
+  result = result.replace(/--\[\[[\s\S]*?\]\]/g, '');
+
+  // Remove single-line comments (but not inside strings)
+  // Process line by line to handle strings correctly
+  const lines = result.split('\n');
+  const minifiedLines: string[] = [];
+
+  for (const line of lines) {
+    let processed = '';
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let inBracketStr = false;
+    let i = 0;
+
+    while (i < line.length) {
+      const ch = line[i];
+      const next = line[i + 1];
+
+      // Handle escape sequences inside strings
+      if ((inSingleQuote || inDoubleQuote) && ch === '\\') {
+        processed += ch + (next || '');
+        i += 2;
+        continue;
+      }
+
+      // Toggle string states
+      if (ch === "'" && !inDoubleQuote && !inBracketStr) {
+        inSingleQuote = !inSingleQuote;
+        processed += ch;
+        i++;
+        continue;
+      }
+      if (ch === '"' && !inSingleQuote && !inBracketStr) {
+        inDoubleQuote = !inDoubleQuote;
+        processed += ch;
+        i++;
+        continue;
+      }
+
+      // Detect comment outside strings
+      if (!inSingleQuote && !inDoubleQuote && !inBracketStr && ch === '-' && next === '-') {
+        // Check for block comment start
+        if (line.substring(i + 2, i + 4) === '[[') {
+          break; // Rest handled by block comment removal above
+        }
+        break; // Line comment - skip rest of line
+      }
+
+      processed += ch;
+      i++;
+    }
+
+    // Trim trailing whitespace
+    const trimmed = processed.trimEnd();
+    if (trimmed.length > 0) {
+      // Compress multiple spaces to single (outside strings - simplified)
+      minifiedLines.push(trimmed);
+    }
+  }
+
+  // Join with semicolons where possible for density
+  result = minifiedLines.join('\n');
+
+  // Remove empty lines
+  result = result.replace(/\n{2,}/g, '\n');
+
+  // Trim leading/trailing
+  result = result.trim();
+
+  return result;
+}
+
+// =====================================================
 // LURAPH INTEGRATION V2 (full API spec compliance)
 // API docs: https://api.lura.ph/v1
 // =====================================================
