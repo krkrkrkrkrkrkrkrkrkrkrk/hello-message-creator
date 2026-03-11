@@ -600,7 +600,7 @@ local ${funcName} = function()
         updateStatus("❌ HTTP unavailable", Color3.fromRGB(255,100,100))
         task.wait(1.5); closeGui(false); error("HTTP unavailable"); return
       end
-      res = req({Url=url, Method="POST", Headers={["Content-Type"]="application/json",["x-shadow-sig"]="ShadowAuth-v2"}, Body=body})
+      res = req({Url=url, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body})
     end
 
     if res and res.Body then
