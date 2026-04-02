@@ -112,7 +112,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "22.0.0";
+const LOADER_VERSION = "24.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -585,7 +585,34 @@ local ${funcName} = function()
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
     local res
 
-    -- Fast path: HttpService:PostAsync (no extra overhead)
+    -- Resolve real request function (anti-hook: debug.info C-level extraction)
+    local _real_req
+    pcall(function()
+      if syn and syn.request then
+        _real_req = syn.request
+      end
+    end)
+    if not _real_req then
+      pcall(function()
+        xpcall(function()
+          request()
+        end, function()
+          for i = 1, 15 do
+            local f = debug.info(i, "f")
+            if not f then break end
+            if debug.info(f, "n") == "request" and debug.info(f, "s") == "[C]" then
+              _real_req = f
+              break
+            end
+          end
+        end)
+      end)
+    end
+    if not _real_req then
+      pcall(function() _real_req = request or http_request end)
+    end
+
+    -- Fast path: HttpService:PostAsync
     pcall(function()
       if H and H.PostAsync and Enum and Enum.HttpContentType then
         local resp = H:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
@@ -593,14 +620,16 @@ local ${funcName} = function()
       end
     end)
 
-    -- Fallback: request/http_request
+    -- Fallback: resolved request function
+    if not res and _real_req then
+      pcall(function()
+        res = _real_req({Url=url, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body})
+      end)
+    end
+
     if not res then
-      local req = request or http_request or (syn and syn.request)
-      if not req then
-        updateStatus("❌ HTTP unavailable", Color3.fromRGB(255,100,100))
-        task.wait(1.5); closeGui(false); error("HTTP unavailable"); return
-      end
-      res = req({Url=url, Method="POST", Headers={["Content-Type"]="application/json"}, Body=body})
+      updateStatus("❌ HTTP unavailable", Color3.fromRGB(255,100,100))
+      task.wait(1.5); closeGui(false); return
     end
 
     if res and res.Body then
@@ -827,6 +856,19 @@ pcall(function()
     if type(o)~="function"then while true do task.wait(9e9)end end
   end
 end)
+local _RQ
+pcall(function()if syn and syn.request then _RQ=syn.request end end)
+if not _RQ then pcall(function()
+  xpcall(function()request()end,function()
+    for i=1,15 do local f=debug.info(i,"f")if not f then break end
+    if debug.info(f,"n")=="request"and debug.info(f,"s")=="[C]"then _RQ=f;break end end
+  end)
+end)end
+if not _RQ then pcall(function()_RQ=request or http_request end)end
+pcall(function()if debug and debug.info then
+  local _di=debug.info
+  debug.info=function(a,b)if type(a)=="number"and a>3 and b=="f"then return nil end return _di(a,b)end
+end end)
 local _F=_D("${encFolder}",${xorKey})
 local _V=_D("${encVersion}",${xorKey})
 local _C

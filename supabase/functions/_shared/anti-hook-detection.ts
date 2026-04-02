@@ -189,7 +189,29 @@ end
 export function generateExecutorIdentification(): string {
   return `
 local _SA_EXEC_ID = 0
-local _SA_REQUEST = syn and syn.request or request or http_request
+
+-- Resolve real request function via debug.info C-level extraction (anti-hook)
+local _SA_REQUEST
+pcall(function()
+  if syn and syn.request then _SA_REQUEST = syn.request end
+end)
+if not _SA_REQUEST then
+  pcall(function()
+    xpcall(function() request() end, function()
+      for i = 1, 15 do
+        local f = debug.info(i, "f")
+        if not f then break end
+        if debug.info(f, "n") == "request" and debug.info(f, "s") == "[C]" then
+          _SA_REQUEST = f; break
+        end
+      end
+    end)
+  end)
+end
+if not _SA_REQUEST then
+  pcall(function() _SA_REQUEST = request or http_request end)
+end
+
 pcall(function()
   local ie = identifyexecutor
   if ie then
@@ -197,7 +219,7 @@ pcall(function()
     local ver = ({ie()})[2]
     if name=="Wave" then _SA_EXEC_ID=10
     elseif name=="Volt" then _SA_EXEC_ID=11
-    elseif name=="Synapse X" then _SA_EXEC_ID=1
+    elseif name=="Synapse X" or name=="Synapse" then _SA_EXEC_ID=1
     elseif name=="ScriptWare" then _SA_EXEC_ID=ver=="Mac" and 5 or 2
     elseif name=="Sirhurt" then _SA_EXEC_ID=7
     elseif name=="Xeno" then _SA_EXEC_ID=12
@@ -705,9 +727,29 @@ pcall(function()
   if c then c:Disconnect() end
 end)
 
--- Executor ID (Luarmor v90)
+-- Executor ID (Luarmor v90) + debug.info real request extraction
 local _SA_EXEC_ID = 0
-local _SA_REQUEST = syn and syn.request or request or http_request
+local _SA_REQUEST
+pcall(function()
+  if syn and syn.request then _SA_REQUEST = syn.request end
+end)
+if not _SA_REQUEST then
+  pcall(function()
+    xpcall(function() request() end, function()
+      for i = 1, 15 do
+        local f = debug.info(i, "f")
+        if not f then break end
+        if debug.info(f, "n") == "request" and debug.info(f, "s") == "[C]" then
+          _SA_REQUEST = f; break
+        end
+      end
+    end)
+  end)
+end
+if not _SA_REQUEST then
+  pcall(function() _SA_REQUEST = request or http_request end)
+end
+
 pcall(function()
   local ie = identifyexecutor
   if ie then
@@ -715,7 +757,7 @@ pcall(function()
     local ver = ({ie()})[2]
     if name=="Wave" then _SA_EXEC_ID=10
     elseif name=="Volt" then _SA_EXEC_ID=11
-    elseif name=="Synapse X" then _SA_EXEC_ID=1
+    elseif name=="Synapse X" or name=="Synapse" then _SA_EXEC_ID=1
     elseif name=="ScriptWare" then _SA_EXEC_ID=ver=="Mac" and 5 or 2
     elseif name=="Sirhurt" then _SA_EXEC_ID=7
     elseif name=="Xeno" then _SA_EXEC_ID=12
@@ -727,6 +769,18 @@ pcall(function()
     if FLUXUS_LOADED or EVON_LOADED or WRD_LOADED or COMET_LOADED or OZONE_LOADED or TRIGON_LOADED then _SA_EXEC_ID=4
     elseif KRNL_LOADED then _SA_EXEC_ID=3
     elseif Electron_Loaded then _SA_EXEC_ID=6
+    end
+  end
+end)
+
+-- Anti debug.info extraction: poison debug.info after we got our refs
+pcall(function()
+  if debug and debug.info then
+    local _real_di = debug.info
+    debug.info = function(a, b)
+      -- Block stack frame scanning above level 3 (prevents extraction of our functions)
+      if type(a) == "number" and a > 3 and b == "f" then return nil end
+      return _real_di(a, b)
     end
   end
 end)
