@@ -189,7 +189,29 @@ end
 export function generateExecutorIdentification(): string {
   return `
 local _SA_EXEC_ID = 0
-local _SA_REQUEST = syn and syn.request or request or http_request
+
+-- Resolve real request function via debug.info C-level extraction (anti-hook)
+local _SA_REQUEST
+pcall(function()
+  if syn and syn.request then _SA_REQUEST = syn.request end
+end)
+if not _SA_REQUEST then
+  pcall(function()
+    xpcall(function() request() end, function()
+      for i = 1, 15 do
+        local f = debug.info(i, "f")
+        if not f then break end
+        if debug.info(f, "n") == "request" and debug.info(f, "s") == "[C]" then
+          _SA_REQUEST = f; break
+        end
+      end
+    end)
+  end)
+end
+if not _SA_REQUEST then
+  pcall(function() _SA_REQUEST = request or http_request end)
+end
+
 pcall(function()
   local ie = identifyexecutor
   if ie then
@@ -197,7 +219,7 @@ pcall(function()
     local ver = ({ie()})[2]
     if name=="Wave" then _SA_EXEC_ID=10
     elseif name=="Volt" then _SA_EXEC_ID=11
-    elseif name=="Synapse X" then _SA_EXEC_ID=1
+    elseif name=="Synapse X" or name=="Synapse" then _SA_EXEC_ID=1
     elseif name=="ScriptWare" then _SA_EXEC_ID=ver=="Mac" and 5 or 2
     elseif name=="Sirhurt" then _SA_EXEC_ID=7
     elseif name=="Xeno" then _SA_EXEC_ID=12
