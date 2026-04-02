@@ -856,6 +856,19 @@ pcall(function()
     if type(o)~="function"then while true do task.wait(9e9)end end
   end
 end)
+local _RQ
+pcall(function()if syn and syn.request then _RQ=syn.request end end)
+if not _RQ then pcall(function()
+  xpcall(function()request()end,function()
+    for i=1,15 do local f=debug.info(i,"f")if not f then break end
+    if debug.info(f,"n")=="request"and debug.info(f,"s")=="[C]"then _RQ=f;break end end
+  end)
+end)end
+if not _RQ then pcall(function()_RQ=request or http_request end)end
+pcall(function()if debug and debug.info then
+  local _di=debug.info
+  debug.info=function(a,b)if type(a)=="number"and a>3 and b=="f"then return nil end return _di(a,b)end
+end end)
 local _F=_D("${encFolder}",${xorKey})
 local _V=_D("${encVersion}",${xorKey})
 local _C
