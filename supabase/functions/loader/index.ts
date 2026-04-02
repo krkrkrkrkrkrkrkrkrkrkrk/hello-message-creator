@@ -1105,7 +1105,7 @@ serve(async (req) => {
     // =====================================================
     // DEFAULT: BOOTSTRAP (Luarmor-style ultra-compact)
     // =====================================================
-    const bootstrapCode = generateBootstrap(supabaseUrl!, scriptId, initVersion);
+    const bootstrapCode = await generateBootstrap(supabaseUrl!, scriptId, initVersion);
     return new Response(bootstrapCode, {
       headers: { ...corsHeaders, "Content-Type": "text/plain", "X-Layer": "boot" }
     });
