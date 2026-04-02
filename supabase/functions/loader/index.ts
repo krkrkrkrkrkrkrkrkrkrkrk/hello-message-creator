@@ -784,49 +784,122 @@ function generateBsdata(scriptId: string, version: string): { luaDecl: string; k
   };
 }
 
-function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: string): string {
+// Bootstrap cache (obfuscated via Luraph)
+const bootstrapCache = new Map<string, { code: string; timestamp: number }>();
+
+function generateBootstrapRaw(supabaseUrl: string, scriptId: string, initVersion: string): string {
   const cacheBuildVersion = `${initVersion}-lv${LOADER_VERSION}`;
-  
-  // XOR key for string encryption
   const xorKey = Math.floor(Math.random() * 200) + 30;
-  
-  // Generic folder name (like Luarmor's "static_content_XXXXXX")
   const folderSeed = Math.floor(Math.random() * 999999);
   const cacheFolder = `static_content_${folderSeed}`;
-  
-  // Encrypt ALL sensitive strings
   const encUrl = xorEncryptString(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${cacheBuildVersion}`, xorKey);
   const encFolder = xorEncryptString(cacheFolder, xorKey);
   const encVersion = xorEncryptString(cacheBuildVersion, xorKey);
-  
-  // Generate _bsdata0 equivalent
   const bsdata = generateBsdata(scriptId, cacheBuildVersion);
-  
-  // Random variable names (no SA prefix)
-  const vDec = generateRandomVarName(8);
-  const vLs = generateRandomVarName(6);
-  const vF = generateRandomVarName(5);
-  const vB = generateRandomVarName(5);
-  const vA = generateRandomVarName(5);
-  const vUrl = generateRandomVarName(7);
-  const vHook = generateRandomVarName(6);
-  const vOk = generateRandomVarName(4);
-  const vFn = generateRandomVarName(4);
 
-  // Bootstrap with:
-  // 1. _bsdata0 encrypted session data
-  // 2. loadstring hook detection (ce_like_loadstring_fn pattern)
-  // 3. XOR-encrypted URL/folder/version (no plaintext strings)
-  // 4. Cache with version-aware cleanup
-  // 5. No identifying prefixes, labels, or warn messages
-  // 6. No plaintext URLs, script IDs, or version strings
+  // Thread isolation: entire bootstrap runs inside coroutine.wrap to break
+  // UnveilR/capture tool stack traces. The outer layer just calls the coroutine.
+  // Anti-decompile: multiple indirection layers + environment clearing.
   return `${bsdata.luaDecl}
-local ${vHook}=false;pcall(function()if ce_like_loadstring_fn then ${vHook}=true end end);
-local ${vDec}=function(s,k)local r=""for i=1,#s do r=r..string.char(bit32.bxor(string.byte(s,i),(k+(i-1)*7+13)%256))end return r end;
-local ${vLs}=loadstring;pcall(function()if ce_like_loadstring_fn then ${vLs}=ce_like_loadstring_fn end end);pcall(function()if getgenv then ${vLs}=getgenv().loadstring or ${vLs} end end);
-pcall(function()local _tb=(debug.traceback()or""):lower()if _tb:find("unveilr")or _tb:find("httpspy")or _tb:find("crypta")or _tb:find("remotespy")or _tb:find("simplespy")then while true do end end end);
-local ${vF}=${vDec}("${encFolder}",${xorKey});local ${vB}=${vDec}("${encVersion}",${xorKey});local ${vA};pcall(function()${vA}=readfile(${vF}.."/c-"..${vB}..".lua")end);if ${vA} and #${vA}>2000 then local ${vOk},${vFn}=pcall(${vLs},${vA});if ${vOk} and ${vFn} then return ${vFn}()end;${vA}=nil end;
-if not ${vA} then pcall(makefolder,${vF});pcall(function()for _,v in pairs(listfiles('./'..${vF}))do pcall(delfile,v)end end);local ${vUrl}=${vDec}("${encUrl}",${xorKey});local ${vOk}=pcall(function()${vA}=game:HttpGet(${vUrl})end);if(not ${vOk} or not ${vA} or #${vA}<100)then pcall(function()${vA}=game:HttpGet(${vUrl}.."&r="..tostring(math.floor(os.clock()*100000)))end)end;if not ${vA} or #${vA}<100 then return end;pcall(function()writefile(${vF}.."/c-"..${vB}..".lua",${vA})end);local ${vFn}=${vLs}(${vA});if ${vFn} then return ${vFn}()end end`;
+return (coroutine.wrap(function()
+local _E=getfenv(0)
+local _D=function(s,k)local r=""for i=1,#s do r=r..string.char(bit32.bxor(string.byte(s,i),(k+(i-1)*7+13)%256))end return r end
+local _L=loadstring
+pcall(function()if ce_like_loadstring_fn then _L=ce_like_loadstring_fn end end)
+pcall(function()if getgenv then _L=getgenv().loadstring or _L end end)
+pcall(function()
+  local t=(debug.traceback()or""):lower()
+  for _,p in ipairs({"unveilr","httpspy","crypta","remotespy","simplespy","dumpstring","scriptdumper"})do
+    if t:find(p)then while true do task.wait(9e9)end end
+  end
+end)
+pcall(function()
+  local cg=game:GetService("CoreGui")
+  for _,c in ipairs(cg:GetChildren())do
+    local n=c.Name:lower()
+    if n:find("remotespy")or n:find("httpspy")or n:find("unnamed")or n:find("dex")then while true do task.wait(9e9)end end
+  end
+end)
+pcall(function()
+  if hookfunction or replaceclosure then
+    local o=game.HttpGet
+    if type(o)~="function"then while true do task.wait(9e9)end end
+  end
+end)
+local _F=_D("${encFolder}",${xorKey})
+local _V=_D("${encVersion}",${xorKey})
+local _C
+pcall(function()_C=readfile(_F.."/c-".._V..".lua")end)
+if _C and #_C>2000 then
+  local o,f=pcall(_L,_C)
+  if o and f then
+    pcall(function()setfenv(f,setmetatable({},{__index=_E}))end)
+    return f()
+  end
+  _C=nil
+end
+if not _C then
+  pcall(makefolder,_F)
+  pcall(function()for _,v in pairs(listfiles("./".. _F))do pcall(delfile,v)end end)
+  local _U=_D("${encUrl}",${xorKey})
+  local _ok=pcall(function()_C=game:HttpGet(_U)end)
+  if not _ok or not _C or #_C<100 then
+    pcall(function()_C=game:HttpGet(_U.."&r="..tostring(math.floor(os.clock()*100000)))end)
+  end
+  if not _C or #_C<100 then return end
+  pcall(function()writefile(_F.."/c-".._V..".lua",_C)end)
+  local f=_L(_C)
+  if f then
+    pcall(function()setfenv(f,setmetatable({},{__index=_E}))end)
+    return f()
+  end
+end
+end))()`;
+}
+
+async function generateBootstrap(supabaseUrl: string, scriptId: string, initVersion: string): Promise<string> {
+  // Cache key for obfuscated bootstrap
+  const bsCacheKey = `bs_${scriptId.substring(0, 8)}_${initVersion}_v${LOADER_VERSION}`;
+  const cached = bootstrapCache.get(bsCacheKey);
+  if (cached && (Date.now() - cached.timestamp) < 600000) {
+    return cached.code;
+  }
+
+  // Check DB cache
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const dbVersion = `bs_${initVersion}_lv${LOADER_VERSION}`;
+  const { data: build } = await supabase
+    .from("script_builds")
+    .select("layer5")
+    .eq("script_id", scriptId)
+    .eq("version", dbVersion)
+    .maybeSingle();
+
+  if (build?.layer5 && build.layer5.length > 100) {
+    bootstrapCache.set(bsCacheKey, { code: build.layer5, timestamp: Date.now() });
+    return build.layer5;
+  }
+
+  // Generate raw → minify → Luraph obfuscate
+  const raw = generateBootstrapRaw(supabaseUrl, scriptId, initVersion);
+  const minified = minifyLua(raw);
+  const luraphResult = await obfuscateWithLuraph(minified, `bs_${scriptId.substring(0, 8)}`);
+  const obfuscated = luraphResult.code;
+
+  bootstrapCache.set(bsCacheKey, { code: obfuscated, timestamp: Date.now() });
+
+  // Persist
+  await supabase.from("script_builds").upsert({
+    script_id: scriptId,
+    version: dbVersion,
+    layer5: obfuscated,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "script_id,version" });
+
+  return obfuscated;
 }
 
 // =====================================================
