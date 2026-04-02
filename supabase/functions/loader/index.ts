@@ -752,7 +752,8 @@ local ${funcName} = function()
 end
 
 local _result = ${funcName}()
-if type(_result)=="function" then return _result()
+if type(_result)=="function" then
+  return (coroutine.wrap(function() return _result() end))()
 else return _result end
 `;
 }
