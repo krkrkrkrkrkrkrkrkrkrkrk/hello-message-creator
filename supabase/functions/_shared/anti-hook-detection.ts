@@ -1035,6 +1035,82 @@ _G.__SA_ANTI_HOOK = {
 `;
 }
 
+/**
+ * RBXScriptConnection type check (25ms method by @Barrelton)
+ * Verifies that UserInputService connections return real RBXScriptConnection objects.
+ * Fake environments (env loggers) fail this check.
+ */
+export function generateRBXConnectionCheck(): string {
+  return `
+pcall(function()
+  local U = game:GetService("UserInputService")
+  local c = U.WindowFocused:Connect(function() end)
+  local d = U.WindowFocusReleased:Connect(function() end)
+  if typeof(c) ~= "RBXScriptConnection" or typeof(d) ~= "RBXScriptConnection" then
+    __SA_SUSPICION = __SA_SUSPICION + 10
+    while true do
+      for i = 1, 5 do
+        task.spawn(function() while true do task.wait() end end)
+      end
+    end
+  end
+  c:Disconnect()
+  d:Disconnect()
+end)
+`;
+}
+
+/**
+ * Enum fingerprint check (threaded method by @! kyx)
+ * Checks for recently added Roblox Enum values that don't exist in fake environments.
+ * Real Roblox has these enums; env loggers/emulators usually miss them.
+ */
+export function generateEnumFingerprintCheck(): string {
+  return `
+pcall(function()
+  local _ef_threshold = 3
+  local _ef_checks = {
+    {'AssetType','FaceMakeup'},{'AssetType','LipMakeup'},{'AssetType','EyeMakeup'},
+    {'UserInputState','None'},
+    {'VideoSampleSize','Small'},{'VideoSampleSize','Medium'},{'VideoSampleSize','Large'},{'VideoSampleSize','Full'},
+    {'TextInputType','NewPassword'},{'TextInputType','NewPasswordShown'},
+    {'ExperienceAuthScope','DefaultScope'},{'ExperienceAuthScope','CreatorAssetsCreate'}
+  }
+  local _ef_miss = 0
+  for _, pair in ipairs(_ef_checks) do
+    local ok = pcall(function() local _ = Enum[pair[1]][pair[2]] end)
+    if not ok then _ef_miss = _ef_miss + 1 end
+  end
+  if _ef_miss >= _ef_threshold then
+    __SA_SUSPICION = __SA_SUSPICION + 10
+    while true do
+      for i = 1, 5 do
+        task.spawn(function() while true do task.wait() end end)
+      end
+    end
+  end
+end)
+`;
+}
+
+/**
+ * getmenv() detection (method3 by @diwnxss)
+ * If getmenv() exists, the environment is NOT a real Roblox client.
+ * Only executors expose getmenv - but env loggers don't have it.
+ * Combined with other signals to detect emulated environments.
+ */
+export function generateGetmenvCheck(): string {
+  return `
+pcall(function()
+  local _gm_flag = -67
+  if getmenv then _gm_flag = 58 else _gm_flag = -67 end
+  if _gm_flag ~= -67 and not identifyexecutor then
+    __SA_SUSPICION = __SA_SUSPICION + 8
+  end
+end)
+`;
+}
+
 // PRNG string encryption (kept for compatibility but simplified)
 export function generatePRNGStringEncryption(): string {
   return '';  // Integrated into custom encoding

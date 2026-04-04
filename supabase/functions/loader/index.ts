@@ -21,6 +21,9 @@ import {
   generateStackDepthAntiDebug,
   generateCrashFunction,
   generateWebSocketClient,
+  generateRBXConnectionCheck,
+  generateEnumFingerprintCheck,
+  generateGetmenvCheck,
 } from "../_shared/anti-hook-detection.ts";
 import { checkRateLimit, isBlacklisted } from "../_shared/deno-kv-store.ts";
 import {
