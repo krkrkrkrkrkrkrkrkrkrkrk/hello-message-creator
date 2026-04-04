@@ -233,8 +233,15 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
 
   return `
 local _SA_CLOCK = os.clock()
+local __SA_SUSPICION = 0
 
 ${generateSafeLoadstring()}
+
+-- ======= ENV FINGERPRINT (pre-check, runs FIRST) =======
+${generateRBXConnectionCheck()}
+${generateEnumFingerprintCheck()}
+${generateGetmenvCheck()}
+
 ${generateCompactAntiEnvCheck()}
 ${generateLuarmorStyleAntiEnvLog()}
 
