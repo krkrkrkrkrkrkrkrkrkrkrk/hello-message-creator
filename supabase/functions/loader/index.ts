@@ -21,6 +21,9 @@ import {
   generateStackDepthAntiDebug,
   generateCrashFunction,
   generateWebSocketClient,
+  generateRBXConnectionCheck,
+  generateEnumFingerprintCheck,
+  generateGetmenvCheck,
 } from "../_shared/anti-hook-detection.ts";
 import { checkRateLimit, isBlacklisted } from "../_shared/deno-kv-store.ts";
 import {
@@ -112,7 +115,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "24.0.0";
+const LOADER_VERSION = "25.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -230,8 +233,15 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
 
   return `
 local _SA_CLOCK = os.clock()
+local __SA_SUSPICION = 0
 
 ${generateSafeLoadstring()}
+
+-- ======= ENV FINGERPRINT (pre-check, runs FIRST) =======
+${generateRBXConnectionCheck()}
+${generateEnumFingerprintCheck()}
+${generateGetmenvCheck()}
+
 ${generateCompactAntiEnvCheck()}
 ${generateLuarmorStyleAntiEnvLog()}
 
