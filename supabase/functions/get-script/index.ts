@@ -135,58 +135,38 @@ function encodeWatermark(str: string, seed: number): number[] {
   return nums;
 }
 
-// ==================== EXECUTOR DETECTION ====================
+// ==================== ACCESS DETECTION (Luarmor-style: block browsers, accept all) ====================
 
 function isFromExecutor(req: Request): { valid: boolean; execName?: string } {
-  const ua = (req.headers.get("user-agent") || "").toLowerCase();
   const sig = req.headers.get("x-shadow-sig");
   
   if (sig === "ShadowAuth-Loader-v2") {
     return { valid: true, execName: "ShadowAuth" };
   }
   
-  const executorPatterns = [
-    { pattern: /synapse/i, name: "Synapse" },
-    { pattern: /krnl/i, name: "KRNL" },
-    { pattern: /script-?ware/i, name: "ScriptWare" },
-    { pattern: /fluxus/i, name: "Fluxus" },
-    { pattern: /electron/i, name: "Electron" },
-    { pattern: /oxygen/i, name: "Oxygen" },
-    { pattern: /sentinel/i, name: "Sentinel" },
-    { pattern: /sirius/i, name: "Sirius" },
-    { pattern: /valyse/i, name: "Valyse" },
-    { pattern: /celery/i, name: "Celery" },
-    { pattern: /arceus/i, name: "Arceus" },
-    { pattern: /roblox/i, name: "Roblox" },
-    { pattern: /comet/i, name: "Comet" },
-    { pattern: /trigon/i, name: "Trigon" },
-    { pattern: /delta/i, name: "Delta" },
-    { pattern: /hydrogen/i, name: "Hydrogen" },
-    { pattern: /evon/i, name: "Evon" },
-    { pattern: /vegax/i, name: "VegaX" },
-    { pattern: /jjsploit/i, name: "JJSploit" },
-    { pattern: /nihon/i, name: "Nihon" },
-    { pattern: /zorara/i, name: "Zorara" },
-    { pattern: /macsploit/i, name: "Macsploit" },
-    { pattern: /sirhurt/i, name: "SirHurt" },
-    { pattern: /temple/i, name: "Temple" },
-    { pattern: /codex/i, name: "Codex" },
-    { pattern: /swift/i, name: "Swift" },
-    { pattern: /awp/i, name: "AWP" },
-    { pattern: /krampus/i, name: "Krampus" },
-    { pattern: /solara/i, name: "Solara" },
-    { pattern: /wave/i, name: "Wave" },
-    { pattern: /volt/i, name: "Volt" },
-    { pattern: /madium/i, name: "Madium" },
-  ];
+  // Block browsers, accept everything else
+  const accept = (req.headers.get("accept") || "").toLowerCase();
+  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+  const isBrowser = secFetchDest === "document" || accept.includes("text/html");
   
-  for (const { pattern, name } of executorPatterns) {
+  if (isBrowser) {
+    return { valid: false };
+  }
+  
+  // Try to identify executor name from UA (for logging only, not blocking)
+  const ua = (req.headers.get("user-agent") || "").toLowerCase();
+  const knownExecutors: [RegExp, string][] = [
+    [/synapse/i, "Synapse"], [/wave/i, "Wave"], [/volt/i, "Volt"],
+    [/krnl/i, "KRNL"], [/fluxus/i, "Fluxus"], [/delta/i, "Delta"],
+    [/xeno/i, "Xeno"], [/nezur/i, "Nezur"], [/codex/i, "Codex"],
+  ];
+  for (const [pattern, name] of knownExecutors) {
     if (pattern.test(ua)) {
       return { valid: true, execName: name };
     }
   }
   
-  return { valid: false };
+  return { valid: true, execName: "Unknown" };
 }
 
 // ==================== BINARY STREAM GENERATOR (LUARMOR-IDENTICAL) ====================

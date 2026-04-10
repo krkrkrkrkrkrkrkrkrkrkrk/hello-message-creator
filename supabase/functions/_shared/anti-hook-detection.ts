@@ -582,7 +582,7 @@ if not _SA_LOADSTRING then
   pcall(function() _SA_LOADSTRING = loadstring end)
 end
 if not _SA_LOADSTRING then
-  error("Executor is incompatible. Use Volt or Wave.")
+  return
 end
 `;
 }

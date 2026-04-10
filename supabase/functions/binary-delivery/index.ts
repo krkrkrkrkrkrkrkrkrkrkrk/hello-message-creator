@@ -25,12 +25,11 @@ const corsHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
 };
 
-// Executor detection
-function isExecutor(ua: string): boolean {
-  const patterns = [/synapse/i, /krnl/i, /fluxus/i, /electron/i, /oxygen/i, /sentinel/i, 
-    /celery/i, /arceus/i, /roblox/i, /comet/i, /trigon/i, /delta/i, /hydrogen/i, 
-    /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i, /script-?ware/i, /madium/i];
-  return patterns.some(p => p.test(ua));
+// Luarmor-style: block browsers, accept all executors
+function isBrowser(req: Request): boolean {
+  const accept = (req.headers.get("accept") || "").toLowerCase();
+  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+  return secFetchDest === "document" || accept.includes("text/html");
 }
 
 serve(async (req) => {
@@ -42,8 +41,8 @@ serve(async (req) => {
                    req.headers.get("cf-connecting-ip") || "unknown";
   const ua = req.headers.get("user-agent") || "";
 
-  // Only allow executors
-  if (!isExecutor(ua)) {
+  // Block browsers, accept everything else
+  if (isBrowser(req)) {
     return new Response(new Uint8Array([0xFF, 0x00, 0x00, 0x00]), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/octet-stream" }

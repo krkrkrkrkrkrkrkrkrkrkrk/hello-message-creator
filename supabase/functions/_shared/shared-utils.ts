@@ -46,8 +46,10 @@ const EXECUTOR_PATTERNS = [
   /httpget/i, /exploiter/i, /xeno/i, /nezur/i, /ro-?exec/i, /volt/i, /madium/i,
 ];
 
+// Luarmor-style: block browsers, accept all executors
 export function isExecutor(ua: string): boolean {
-  return EXECUTOR_PATTERNS.some(p => p.test(ua));
+  // Keep for backward compat but no longer used for blocking
+  return !(/\bmozilla\b|\bchrome\b|\bsafari\b|\bedg\b|\bfirefox\b/i.test(ua));
 }
 
 export function getExecutorName(ua: string): string {

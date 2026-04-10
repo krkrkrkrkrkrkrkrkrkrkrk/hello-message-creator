@@ -92,9 +92,14 @@ serve(async (req) => {
 
   const sig = req.headers.get("x-shadow-sig");
   
-  if (!sig && !isExecutor(ua)) {
-    await logRequest(401, "Unauthorized - incompatible executor");
-    return new Response(JSON.stringify({ valid: false, message: "Executor is incompatible. Use Volt or Wave." }), {
+  // Luarmor-style: block browsers, accept everything else (no executor whitelist)
+  const accept = (req.headers.get("accept") || "").toLowerCase();
+  const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
+  const isBrowser = secFetchDest === "document" || accept.includes("text/html");
+  
+  if (!sig && isBrowser) {
+    await logRequest(401, "Unauthorized - browser access");
+    return new Response(JSON.stringify({ valid: false, message: "Access denied." }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
