@@ -225,6 +225,7 @@ pcall(function()
     elseif name=="Xeno" then _SA_EXEC_ID=12
     elseif name=="Nezur" then _SA_EXEC_ID=13
     elseif name=="Codex" then _SA_EXEC_ID=14
+    elseif name=="Madium" then _SA_EXEC_ID=15
     end
   end
   if _SA_EXEC_ID==0 then
@@ -763,6 +764,7 @@ pcall(function()
     elseif name=="Xeno" then _SA_EXEC_ID=12
     elseif name=="Nezur" then _SA_EXEC_ID=13
     elseif name=="Codex" then _SA_EXEC_ID=14
+    elseif name=="Madium" then _SA_EXEC_ID=15
     end
   end
   if _SA_EXEC_ID==0 then

@@ -43,7 +43,7 @@ const EXECUTOR_PATTERNS = [
   /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i,
   /script-?ware/i, /sirius/i, /valyse/i, /codex/i, /swift/i, /awp/i,
   /krampus/i, /macsploit/i, /sirhurt/i, /temple/i, /wininet/i, /winhttp/i,
-  /httpget/i, /exploiter/i, /xeno/i, /nezur/i, /ro-?exec/i, /volt/i,
+  /httpget/i, /exploiter/i, /xeno/i, /nezur/i, /ro-?exec/i, /volt/i, /madium/i,
 ];
 
 export function isExecutor(ua: string): boolean {
@@ -57,6 +57,7 @@ export function getExecutorName(ua: string): string {
     ["fluxus", "Fluxus"], ["krnl", "KRNL"], ["delta", "Delta"],
     ["hydrogen", "Hydrogen"], ["solara", "Solara"], ["wave", "Wave"],
     ["volt", "Volt"], ["xeno", "Xeno"], ["nezur", "Nezur"], ["codex", "Codex"],
+    ["madium", "Madium"],
   ];
   for (const [pattern, name] of map) {
     if (lower.includes(pattern)) return name;

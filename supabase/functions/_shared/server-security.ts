@@ -564,6 +564,7 @@ const EXECUTOR_PATTERNS = [
   { pattern: /volt/i, name: "Volt" },
   { pattern: /electron/i, name: "Electron" },
   { pattern: /roblox/i, name: "Roblox" },
+  { pattern: /madium/i, name: "Madium" },
 ];
 
 /**
