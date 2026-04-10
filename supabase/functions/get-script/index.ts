@@ -177,6 +177,7 @@ function isFromExecutor(req: Request): { valid: boolean; execName?: string } {
     { pattern: /solara/i, name: "Solara" },
     { pattern: /wave/i, name: "Wave" },
     { pattern: /volt/i, name: "Volt" },
+    { pattern: /madium/i, name: "Madium" },
   ];
   
   for (const { pattern, name } of executorPatterns) {
