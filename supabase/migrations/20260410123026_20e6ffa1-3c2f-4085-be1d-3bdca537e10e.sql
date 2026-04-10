@@ -1,0 +1,1 @@
+UPDATE profiles SET subscription_plan = 'enterprise', tokens = 999999, is_admin = true WHERE user_id = 'f1a32da3-92de-4ddc-be7a-396cdd689033';
