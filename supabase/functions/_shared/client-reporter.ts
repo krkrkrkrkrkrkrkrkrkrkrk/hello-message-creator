@@ -173,7 +173,7 @@ _G.__SA_CLIENT_DATA = ${collectorVar}
  */
 export function generateSafeLoadstring(): string {
   return `
--- ShadowAuth Safe Loadstring v3.0 (Minimal - no decisions)
+-- Wbhf Auth Safe Loadstring v3.0 (Minimal - no decisions)
 
 local _SA_LOADSTRING
 
@@ -206,7 +206,7 @@ do
   _realLS = tryGetLoadstring()
   
   if not _realLS then
-    error("[ShadowAuth] No loadstring available")
+    error("[Wbhf Auth] No loadstring available")
   end
   
   _SA_LOADSTRING = function(code)
@@ -233,7 +233,7 @@ export function generateHeartbeatReporter(heartbeatUrl: string, sessionToken: st
   const varPrefix = generateRandomVarName(5);
   
   return `
--- ShadowAuth Heartbeat Reporter v3.0
+-- Wbhf Auth Heartbeat Reporter v3.0
 -- Reports state to server, server decides actions
 
 local _SA_HB_INTERVAL = 10

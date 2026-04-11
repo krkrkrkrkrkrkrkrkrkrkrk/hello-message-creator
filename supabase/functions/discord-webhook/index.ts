@@ -77,7 +77,7 @@ function createEmbed(payload: WebhookPayload): Record<string, unknown> {
       fields,
       timestamp: new Date().toISOString(),
       footer: {
-        text: "ShadowAuth • Powered by Luraph",
+        text: "Wbhf Auth • Powered by Luraph",
         icon_url: "https://cdn.discordapp.com/embed/avatars/0.png"
       }
     }]

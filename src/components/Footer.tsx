@@ -1,7 +1,7 @@
 import { Shield, Github, Twitter, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const DISCORD_INVITE = "https://discord.gg/GE847sSjDV";
+const DISCORD_INVITE = "https://discord.gg/CyyPTwY9Mq";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -18,7 +18,7 @@ const Footer = () => {
                 <div className="absolute inset-0 bg-primary/30 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <span className="font-display text-lg font-bold">
-                Shadow<span className="text-gradient bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Auth</span>
+                Wbhf <span className="text-gradient bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Auth</span>
               </span>
             </Link>
             <p className="text-sm text-muted-foreground mb-6 max-w-xs leading-relaxed">
@@ -55,16 +55,16 @@ const Footer = () => {
           <div>
             <h4 className="font-display font-semibold mb-4 text-foreground">Legal</h4>
             <ul className="space-y-3">
-              <FooterLink href="/documentation">Terms of Service</FooterLink>
-              <FooterLink href="/documentation">Privacy Policy</FooterLink>
-              <FooterLink href="/documentation">Refund Policy</FooterLink>
+              <FooterLink href="/terms">Terms of Service</FooterLink>
+              <FooterLink href="/privacy">Privacy Policy</FooterLink>
+              <FooterLink href="/refund">Refund Policy</FooterLink>
             </ul>
           </div>
         </div>
 
         <div className="border-t border-border/50 mt-12 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © {currentYear} Shadow Auth. All rights reserved.
+            © {currentYear} Wbhf Auth. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground flex items-center gap-1.5">
             Built with <span className="text-destructive">❤️</span> for the Roblox community

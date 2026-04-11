@@ -134,13 +134,12 @@ const DiscordBotTab = () => {
         // Create new config
         const { error } = await supabase
           .from("discord_servers")
-          .insert({
+          .insert([{
             user_id: user.id,
-            api_key: profile.api_key,
             guild_id: finalGuildId,
             bot_token: botToken.trim(),
             public_key: publicKey.trim(),
-          });
+          }]);
 
         if (error) throw error;
       }
@@ -387,7 +386,7 @@ const DiscordBotTab = () => {
   ];
 
   const availableCommands = [
-    { name: "/login", description: "Link your ShadowAuth account to this server", params: "api_key" },
+    { name: "/login", description: "Link your Wbhf Auth account to this server", params: "api_key" },
     { name: "/setproject", description: "Set the active script for this server", params: "(dropdown selection)" },
     { name: "/setbuyerrole", description: "Set the buyer role", params: "role" },
     { name: "/setmanagerrole", description: "Set the manager role", params: "role" },

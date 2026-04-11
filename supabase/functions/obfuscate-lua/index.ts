@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // ============================================================================
-// ShadowAuth Obfuscator - Luraph API Integration + Local Engine
+// Wbhf Auth Obfuscator - Luraph API Integration + Local Engine
 // Supports: LPH_NO_VIRTUALIZE, LPH_JIT, LPH_JIT_MAX macros
 // Performance optimizations from Luraph documentation
 // ============================================================================
@@ -415,8 +415,8 @@ class RC4 {
 
 function obfuscateLocal(source: string, options: Record<string, unknown> = {}): string {
   const _settings = {
-    comment: '// ShadowAuth Protected',
-    variablecomment: 'ShadowAuth Protection Engine v3',
+    comment: '// Wbhf Auth Protected',
+    variablecomment: 'Wbhf Auth Protection Engine v3',
     cryptvarcomment: true,
     variablename: 'SHADOW',
   };

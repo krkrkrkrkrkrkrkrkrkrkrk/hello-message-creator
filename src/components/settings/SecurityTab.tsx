@@ -97,10 +97,13 @@ export default function SecurityTab() {
 
     const updatedScript = { ...selectedScript, [field]: value };
     setSelectedScript(updatedScript);
+
+    const updateData: Record<string, boolean> = {};
+    updateData[field] = value;
     
     const { error } = await supabase
       .from("scripts")
-      .update({ [field]: value })
+      .update(updateData as any)
       .eq("id", selectedScript.id);
 
     if (error) {
@@ -150,7 +153,7 @@ export default function SecurityTab() {
         body: {
           script_id: selectedScript.id,
           event_type: "custom",
-          additional_info: "🧪 This is a test webhook from ShadowAuth Security Settings!",
+          additional_info: "🧪 This is a test webhook from Wbhf Auth Security Settings!",
           success: true
         }
       });

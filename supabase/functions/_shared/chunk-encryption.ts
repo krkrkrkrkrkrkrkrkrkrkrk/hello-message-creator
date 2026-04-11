@@ -360,7 +360,7 @@ export function generateLuaChunkDecryptor(chunkedScript: ChunkedScript, password
   })));
   
   return `
--- ShadowAuth Chunk Decryptor
+-- Wbhf Auth Chunk Decryptor
 local H = game:GetService("HttpService")
 local chunks = H:JSONDecode('${chunksJson}')
 local salt = "${chunkedScript.salt}"

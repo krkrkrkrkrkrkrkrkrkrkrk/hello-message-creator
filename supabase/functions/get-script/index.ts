@@ -140,8 +140,8 @@ function encodeWatermark(str: string, seed: number): number[] {
 function isFromExecutor(req: Request): { valid: boolean; execName?: string } {
   const sig = req.headers.get("x-shadow-sig");
   
-  if (sig === "ShadowAuth-Loader-v2") {
-    return { valid: true, execName: "ShadowAuth" };
+  if (sig === "Wbhf Auth-Loader-v2") {
+    return { valid: true, execName: "Wbhf Auth" };
   }
   
   // Block browsers, accept everything else
@@ -198,7 +198,7 @@ function generateBinaryStreamLoader(
   const encryptedBytes = xorEncryptBytes(scriptBytes, derivedKey);
   const byteTable = encryptedBytes.join(",");
   
-  return `-- ShadowAuth Binary Stream v4 (Real Encryption)
+  return `-- Wbhf Auth Binary Stream v4 (Real Encryption)
 local _L = (getrenv and getrenv().loadstring) or loadstring
 local _B = {${byteTable}}
 local _K = "${password}${salt}"

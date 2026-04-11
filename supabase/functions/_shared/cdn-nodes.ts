@@ -12,7 +12,7 @@
  * - Override: Australia region → force AU nodes
  * - Each region has multiple nodes for random load balancing
  * 
- * In ShadowAuth, nodes map to Supabase Edge regions via path-based routing.
+ * In Wbhf Auth, nodes map to Supabase Edge regions via path-based routing.
  * Since Supabase Edge Functions deploy globally via Deno Deploy, we use
  * the CF-IPCountry header to determine the real edge region.
  */
@@ -116,7 +116,7 @@ function weightedRandom(pool: CDNNode[]): CDNNode {
  */
 export function generateLuaNodeSelector(supabaseUrl: string): string {
   return `
--- ShadowAuth CDN Node Selection (Luarmor-identical timezone algo)
+-- Wbhf Auth CDN Node Selection (Luarmor-identical timezone algo)
 -- Region tag is passed as query param for analytics + edge routing hints
 local _SA_NODE = "${supabaseUrl}/functions/v1"
 local _SA_REGION = "us"

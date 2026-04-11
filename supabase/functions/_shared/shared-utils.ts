@@ -537,7 +537,7 @@ export function deriveEncryptionKey(
  */
 export function generateLuaDecryptor(): string {
   return `
--- ShadowAuth Real Decryptor v2.0
+-- Wbhf Auth Real Decryptor v2.0
 -- Uses executor-native AES when available, XOR fallback
 local function _SA_DECRYPT(encrypted_b64, key, salt, mode)
   -- Base64 decode

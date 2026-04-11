@@ -596,9 +596,9 @@ export function validateExecutorRequest(req: Request): {
   const sig = req.headers.get("x-shadow-sig");
   const ua = req.headers.get("user-agent") || "";
   
-  // Check for ShadowAuth signature
-  if (sig === "ShadowAuth-Loader-v2") {
-    return { valid: true, executor: "ShadowAuth" };
+  // Check for Wbhf Auth signature
+  if (sig === "Wbhf Auth-Loader-v2") {
+    return { valid: true, executor: "Wbhf Auth" };
   }
   
   // Check User-Agent patterns

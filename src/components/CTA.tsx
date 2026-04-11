@@ -6,7 +6,6 @@ import { Link } from "react-router-dom";
 const CTA = () => {
   return (
     <section className="py-32 relative overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[200px]" />
 
@@ -18,7 +17,6 @@ const CTA = () => {
           transition={{ duration: 0.6 }}
           className="glass-strong rounded-3xl p-12 md:p-16 text-center max-w-4xl mx-auto relative overflow-hidden border border-primary/20"
         >
-          {/* Corner Glow */}
           <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/30 rounded-full blur-[80px]" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-accent/20 rounded-full blur-[80px]" />
 
@@ -36,11 +34,10 @@ const CTA = () => {
             </h2>
 
             <p className="text-muted-foreground max-w-xl mx-auto mb-8">
-              Join thousands of developers who trust Shadow Auth to protect their 
+              Join thousands of developers who trust Wbhf Auth to protect their 
               Roblox creations. Start free, upgrade anytime.
             </p>
 
-            {/* Features List */}
             <div className="flex flex-wrap items-center justify-center gap-4 md:gap-6 mb-10">
               <FeatureItem icon={Sparkles} text="Free forever tier" />
               <FeatureItem icon={Zap} text="Instant setup" />

@@ -59,7 +59,6 @@ const UserReviews = () => {
 
   return (
     <section className="py-24 relative overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
 
       <div className="container mx-auto px-6 relative z-10">
@@ -75,7 +74,7 @@ const UserReviews = () => {
             What Our <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Users</span> Say
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Hear from developers who trust ShadowAuth to protect their scripts.
+            Hear from developers who trust Wbhf Auth to protect their scripts.
           </p>
         </motion.div>
 
@@ -110,10 +109,7 @@ const ReviewCard = ({ review }: { review: Review }) => {
       whileHover={{ y: -4 }}
       className="glass p-6 rounded-2xl h-full flex flex-col card-hover"
     >
-      {/* Quote Icon */}
       <Quote className="w-8 h-8 text-primary/30 mb-4" />
-
-      {/* Rating */}
       <div className="flex items-center gap-1 mb-4">
         {[...Array(5)].map((_, i) => (
           <Star
@@ -124,13 +120,9 @@ const ReviewCard = ({ review }: { review: Review }) => {
           />
         ))}
       </div>
-
-      {/* Review Text */}
       <p className="text-muted-foreground text-sm leading-relaxed flex-grow mb-6">
         "{review.review_text}"
       </p>
-
-      {/* User Info */}
       <div className="flex items-center gap-3 pt-4 border-t border-border/50">
         {review.avatar_url ? (
           <img

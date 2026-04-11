@@ -81,14 +81,14 @@ const unauthorizedHTML = `<!DOCTYPE html>
         <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 4 5.5V11c0 5.25 3.5 9.5 8 11 4.5-1.5 8-5.75 8-11V5.5L12 2Z" stroke="rgba(248,113,113,1)" stroke-width="1.8"/><path d="M9 9l6 6M15 9l-6 6" stroke="rgba(248,113,113,1)" stroke-width="1.8" stroke-linecap="round"/></svg>
         <span>Access Denied</span>
       </div>
-      <h1>This content is protected by ShadowAuth</h1>
+      <h1>This content is protected by Wbhf Auth</h1>
       <p class="sub">You don't have permission to access this content.</p>
-      <p class="desc">This content is protected by ShadowAuth. You cannot see the text in the browser.</p>
+      <p class="desc">This content is protected by Wbhf Auth. You cannot see the text in the browser.</p>
       <div class="actions">
         <a class="btn btn-outline" href="/"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11.5 12 4l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 20v-8.5Z" stroke="rgba(201,209,217,1)" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 21.5v-7h5v7" stroke="rgba(201,209,217,1)" stroke-width="1.8" stroke-linecap="round"/></svg>Return Home</a>
-        <a class="btn btn-primary" href="/support"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5c0 4.14-4.03 7.5-9 7.5a11.2 11.2 0 0 1-3.9-.69L3 20l1.42-3.02A6.6 6.6 0 0 1 3 11.5C3 7.36 7.03 4 12 4s9 3.36 9 7.5Z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>Contact ShadowAuth</a>
+        <a class="btn btn-primary" href="/support"><svg viewBox="0 0 24 24" fill="none"><path d="M21 11.5c0 4.14-4.03 7.5-9 7.5a11.2 11.2 0 0 1-3.9-.69L3 20l1.42-3.02A6.6 6.6 0 0 1 3 11.5C3 7.36 7.03 4 12 4s9 3.36 9 7.5Z" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>Contact Wbhf Auth</a>
       </div>
-      <div class="footer">Protected by <b>ShadowAuth</b> • Licensed Security</div>
+      <div class="footer">Protected by <b>Wbhf Auth</b> • Licensed Security</div>
     </div>
   </main>
 </body>
@@ -1117,7 +1117,7 @@ serve(async (req) => {
     // =====================================================
     if (layerParam === "prebuild") {
       await fetch(`${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${initVersion}`, {
-        headers: { "x-shadow-sig": "ShadowAuth-Prebuild" },
+        headers: { "x-shadow-sig": "Wbhf Auth-Prebuild" },
       });
       return new Response("ok", { headers: { ...corsHeaders, "Content-Type": "text/plain" } });
     }
@@ -1147,7 +1147,7 @@ serve(async (req) => {
       // Redirect to full loader for backward compat
       const fullUrl = `${supabaseUrl}/functions/v1/loader/${scriptId}?layer=full&v=${initVersion}`;
       const fullResp = await fetch(fullUrl, {
-        headers: { "x-shadow-sig": "ShadowAuth-Internal" },
+        headers: { "x-shadow-sig": "Wbhf Auth-Internal" },
       });
       const code = await fullResp.text();
       return new Response(code, {

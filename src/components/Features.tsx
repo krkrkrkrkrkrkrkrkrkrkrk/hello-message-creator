@@ -68,7 +68,6 @@ const features = [
 ];
 
 const executorSupport = [
-  // Windows - Updated January 2026 from whatexpsare.online
   { name: "Seliware", status: "full", platform: "Windows" },
   { name: "Volt", status: "full", platform: "Windows" },
   { name: "Potassium", status: "full", platform: "Windows" },
@@ -77,10 +76,8 @@ const executorSupport = [
   { name: "SirHurt", status: "full", platform: "Windows" },
   { name: "Solara", status: "full", platform: "Windows" },
   { name: "Xeno", status: "full", platform: "Windows" },
-  // Mac
   { name: "Hydrogen", status: "full", platform: "Mac" },
   { name: "MacSploit", status: "partial", platform: "Mac" },
-  // Mobile
   { name: "Delta", status: "full", platform: "Mobile" },
   { name: "Codex", status: "full", platform: "Mobile" },
   { name: "Vega X", status: "full", platform: "Mobile" },
@@ -142,7 +139,7 @@ const Features = () => {
               Supported <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Executors</span>
             </h3>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              ShadowAuth is compatible with all major Roblox executors. Our loader automatically detects and adapts to your executor.
+              Wbhf Auth is compatible with all major Roblox executors. Our loader automatically detects and adapts to your executor.
             </p>
           </div>
 

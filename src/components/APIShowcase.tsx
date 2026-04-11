@@ -12,51 +12,26 @@ const APIShowcase = () => {
       title: "Basic Loader",
       description: "Simple script execution with key validation",
       language: "lua",
-      code: `script_key = "YOUR_KEY_HERE"
-
-loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
+      code: `script_key = "YOUR_KEY_HERE"\n\nloadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
     },
     {
       title: "Key Validation",
       description: "Server-side key verification response",
       language: "lua",
-      code: `-- Response from validate-key endpoint:
-{
-  "valid": true,
-  "expires_at": "2025-12-31T23:59:59Z",
-  "hwid_locked": true,
-  "executions": 42
-}`,
+      code: `-- Response from validate-key endpoint:\n{\n  "valid": true,\n  "expires_at": "2025-12-31T23:59:59Z",\n  "hwid_locked": true,\n  "executions": 42\n}`,
     },
     {
       title: "Webhook Integration",
       description: "Real-time execution notifications",
       language: "lua",
-      code: `-- Automatic webhook notifications on every execution
--- Configure in your dashboard:
--- • Player username & ID
--- • Executor type detection
--- • Geographic location
--- • Custom payload data`,
+      code: `-- Automatic webhook notifications on every execution\n-- Configure in your dashboard:\n-- • Player username & ID\n-- • Executor type detection\n-- • Geographic location\n-- • Custom payload data`,
     },
   ];
 
   const features = [
-    {
-      icon: Zap,
-      title: "Instant Delivery",
-      description: "Scripts are delivered in milliseconds with global CDN",
-    },
-    {
-      icon: Shield,
-      title: "Anti-Tamper",
-      description: "Built-in protection against script modification",
-    },
-    {
-      icon: Key,
-      title: "Key System",
-      description: "Flexible key management with expiration and HWID lock",
-    },
+    { icon: Zap, title: "Instant Delivery", description: "Scripts are delivered in milliseconds with global CDN" },
+    { icon: Shield, title: "Anti-Tamper", description: "Built-in protection against script modification" },
+    { icon: Key, title: "Key System", description: "Flexible key management with expiration and HWID lock" },
   ];
 
   const copyToClipboard = (code: string, index: number) => {
@@ -67,12 +42,10 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
 
   return (
     <section id="api" className="py-24 relative overflow-hidden">
-      {/* Background Effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-[120px] opacity-30" />
       
       <div className="container mx-auto px-6 relative z-10">
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -85,17 +58,14 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
           </div>
           <h2 className="text-4xl md:text-5xl font-display font-bold mb-4">
             Simple & Powerful{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              API
-            </span>
+            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">API</span>
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Integrate ShadowAuth into your scripts with just a few lines of code.
+            Integrate Wbhf Auth into your scripts with just a few lines of code.
             Our API handles authentication, key validation, and secure delivery.
           </p>
         </motion.div>
 
-        {/* Code Examples */}
         <div className="grid lg:grid-cols-3 gap-6 mb-16">
           {codeExamples.map((example, index) => (
             <motion.div
@@ -107,7 +77,6 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
               className="group"
             >
               <div className="rounded-xl bg-card border border-border overflow-hidden h-full flex flex-col">
-                {/* Header */}
                 <div className="p-4 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -124,15 +93,9 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
                     className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => copyToClipboard(example.code, index)}
                   >
-                    {copiedIndex === index ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
+                    {copiedIndex === index ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
-
-                {/* Code */}
                 <div className="p-4 flex-1 bg-secondary/30">
                   <pre className="text-sm font-mono text-muted-foreground overflow-x-auto">
                     <code>{example.code}</code>
@@ -143,7 +106,6 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
           ))}
         </div>
 
-        {/* Features Grid */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -168,7 +130,6 @@ loadstring(game:HttpGet("${getFunctionsBaseUrl()}/loader/YOUR_SCRIPT_ID"))()`,
           ))}
         </motion.div>
 
-        {/* CTA */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
