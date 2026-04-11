@@ -153,7 +153,7 @@ export default function SecurityTab() {
         body: {
           script_id: selectedScript.id,
           event_type: "custom",
-          additional_info: "🧪 This is a test webhook from ShadowAuth Security Settings!",
+          additional_info: "🧪 This is a test webhook from Wbhf Auth Security Settings!",
           success: true
         }
       });

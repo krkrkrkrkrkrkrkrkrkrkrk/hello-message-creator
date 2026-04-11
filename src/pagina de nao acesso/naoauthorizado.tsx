@@ -22,7 +22,7 @@ const Index = () => {
 
           {/* Main Title */}
           <h1 className="text-xl md:text-2xl font-bold text-white mb-3 leading-tight">
-            This content is protected by ShadowAuth
+            This content is protected by Wbhf Auth
           </h1>
 
           {/* Subtitle */}
@@ -49,14 +49,14 @@ const Index = () => {
               className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white border-0 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-200"
             >
               <MessageCircle className="w-4 h-4 mr-2" />
-              Contact ShadowAuth
+              Contact Wbhf Auth
             </Button>
           </div>
 
           {/* Licensing Footer */}
           <div className="mt-8 pt-6 border-t border-[#2a3441]/50">
             <p className="text-[#484f58] text-[10px] uppercase tracking-widest">
-              Protected by <span className="text-blue-400 font-semibold">ShadowAuth</span> • Licensed Security
+              Protected by <span className="text-blue-400 font-semibold">Wbhf Auth</span> • Licensed Security
             </p>
           </div>
         </CardContent>
