@@ -217,12 +217,11 @@ const AIChatWidget = () => {
     
     const { data, error } = await supabase
       .from("support_messages")
-      .insert({
+      .insert([{
         ticket_id: supportTicket.id,
-        sender_id: userId,
         sender_type: isAdmin && selectedTicket ? "admin" : "user",
         content: messageContent
-      })
+      }])
       .select()
       .single();
     
@@ -254,12 +253,11 @@ const AIChatWidget = () => {
     
     const { data, error } = await supabase
       .from("support_messages")
-      .insert({
+      .insert([{
         ticket_id: selectedTicket.id,
-        sender_id: userId,
         sender_type: "admin",
         content: messageContent
-      })
+      }])
       .select()
       .single();
     

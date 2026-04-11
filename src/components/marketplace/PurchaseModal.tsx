@@ -151,14 +151,12 @@ export default function PurchaseModal({
       // Create purchase record
       const { error } = await supabase
         .from("marketplace_purchases")
-        .insert({
+        .insert([{
           user_id: session.user.id,
           product_id: product.id,
-          license_key: licenseKey,
-          amount: 0,
-          script_content: product.script_content || null,
+          price_paid: 0,
           status: 'completed'
-        });
+        }]);
 
       if (error) {
         console.error("Purchase error:", error);

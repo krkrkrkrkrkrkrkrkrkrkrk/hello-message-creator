@@ -165,8 +165,6 @@ export default function ActiveSessionsTab() {
       .update({
         is_connected: false,
         status: "kicked",
-        kick_reason: "Kicked by owner",
-        kicked_by: session.user.id,
         disconnected_at: new Date().toISOString(),
       })
       .eq("id", sessionId);

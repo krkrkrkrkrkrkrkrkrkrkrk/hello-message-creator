@@ -134,13 +134,12 @@ const DiscordBotTab = () => {
         // Create new config
         const { error } = await supabase
           .from("discord_servers")
-          .insert({
+          .insert([{
             user_id: user.id,
-            api_key: profile.api_key,
             guild_id: finalGuildId,
             bot_token: botToken.trim(),
             public_key: publicKey.trim(),
-          });
+          }]);
 
         if (error) throw error;
       }

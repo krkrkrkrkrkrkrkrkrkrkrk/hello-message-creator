@@ -97,10 +97,13 @@ export default function SecurityTab() {
 
     const updatedScript = { ...selectedScript, [field]: value };
     setSelectedScript(updatedScript);
+
+    const updateData: Record<string, boolean> = {};
+    updateData[field] = value;
     
     const { error } = await supabase
       .from("scripts")
-      .update({ [field]: value })
+      .update(updateData as any)
       .eq("id", selectedScript.id);
 
     if (error) {
