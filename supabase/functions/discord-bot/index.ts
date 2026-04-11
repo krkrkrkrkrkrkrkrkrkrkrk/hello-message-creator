@@ -155,7 +155,7 @@ function createEmbed(title: string, description: string, color: number = 0x5865F
     color,
     fields,
     footer: {
-      text: "ShadowAuth - Lua Whitelist System",
+      text: "Wbhf Auth - Lua Whitelist System",
       icon_url: "https://cdn.discordapp.com/embed/avatars/0.png"
     },
     timestamp: getUTCTimestamp(),
@@ -205,7 +205,7 @@ async function handleSlashCommand(interaction: any, supabase: any) {
 
       return createEmbed(
         "✅ Successfully Logged In",
-        "Your ShadowAuth account has been linked to this server.\n\nNext steps:\n• `/setproject` - Select a script\n• `/setbuyerrole` - Set buyer role\n• `/setmanagerrole` - Set manager role\n• `/controlpanel` - Create control panel",
+        "Your Wbhf Auth account has been linked to this server.\n\nNext steps:\n• `/setproject` - Select a script\n• `/setbuyerrole` - Set buyer role\n• `/setmanagerrole` - Set manager role\n• `/controlpanel` - Create control panel",
         0x00FF00
       );
     }
@@ -471,7 +471,7 @@ async function handleSlashCommand(interaction: any, supabase: any) {
           { name: "🔑 Your Key", value: `\`\`\`${keyValue}\`\`\``, inline: false },
         ],
         footer: {
-          text: `ShadowAuth - Lua Whitelist System • ${formatUTCDate()}`,
+          text: `Wbhf Auth - Lua Whitelist System • ${formatUTCDate()}`,
         },
         timestamp: getUTCTimestamp(),
       };
@@ -727,14 +727,14 @@ async function handleSlashCommand(interaction: any, supabase: any) {
         return createEmbed("🚫 Key Banned", "Your key has been banned.", 0xFF0000);
       }
 
-      // Clean script loader with ShadowAuth branding
+      // Clean script loader with Wbhf Auth branding
       const loaderUrl = `${SUPABASE_URL}/functions/v1/loader/${config.script_id}`;
       const scriptLoader = `script_key = "${key.key_value}"\nloadstring(game:HttpGet("${loaderUrl}"))()`;
       
       // Respond in channel with ephemeral message (only user sees)
       return {
         embed: {
-          title: "🔐 ShadowAuth Script Loader",
+          title: "🔐 Wbhf Auth Script Loader",
           description: `**${config.scripts?.name || "Script"}**\n\n\`\`\`lua\n${scriptLoader}\n\`\`\`\n\n*Cole este código no seu executor para carregar o script.*`,
           color: 0x8B5CF6,
           fields: [
@@ -743,7 +743,7 @@ async function handleSlashCommand(interaction: any, supabase: any) {
             { name: "🔑 Key Status", value: key.hwid ? "🔒 HWID Locked" : "🔓 Unlocked", inline: true },
           ],
           footer: {
-            text: "ShadowAuth • Só você pode ver esta mensagem",
+            text: "Wbhf Auth • Só você pode ver esta mensagem",
             icon_url: "https://cdn.discordapp.com/embed/avatars/5.png"
           },
         },
@@ -1075,10 +1075,10 @@ async function handleSlashCommand(interaction: any, supabase: any) {
           body: JSON.stringify({
             embeds: [{
               title: "✅ Logs Connected",
-              description: "ShadowAuth logs are now connected to this channel.",
+              description: "Wbhf Auth logs are now connected to this channel.",
               color: 0x00FF00,
               timestamp: new Date().toISOString(),
-              footer: { text: "ShadowAuth - Lua Whitelist System" }
+              footer: { text: "Wbhf Auth - Lua Whitelist System" }
             }]
           })
         });
@@ -1171,7 +1171,7 @@ async function handleSlashCommand(interaction: any, supabase: any) {
               { name: "🔑 Your Key", value: `\`\`\`${keyValue}\`\`\``, inline: false },
               { name: "⏱️ Duration", value: days ? `${days} days` : "Lifetime", inline: true },
             ],
-            footer: { text: `ShadowAuth - Lua Whitelist System • ${formatUTCDate()}` },
+            footer: { text: `Wbhf Auth - Lua Whitelist System • ${formatUTCDate()}` },
           };
           await sendDM(discordId, dmEmbed);
         }
@@ -1409,7 +1409,7 @@ async function handleButtonInteraction(interaction: any, supabase: any) {
         { name: "🔑 Your Key", value: `\`\`\`${keyValue}\`\`\``, inline: false },
       ],
       footer: {
-        text: `ShadowAuth - Lua Whitelist System • ${formatUTCDate()}`,
+        text: `Wbhf Auth - Lua Whitelist System • ${formatUTCDate()}`,
       },
       timestamp: getUTCTimestamp(),
     };
