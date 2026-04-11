@@ -9,36 +9,26 @@ const LoadingScreen = () => {
       transition={{ duration: 0.5 }}
       className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center"
     >
-      {/* Background effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background" />
       <div className="absolute inset-0 noise opacity-[0.02]" />
       
-      {/* Animated logo */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative"
       >
-        {/* Glow rings */}
         <motion.div
-          animate={{ 
-            scale: [1, 1.5, 1],
-            opacity: [0.5, 0, 0.5]
-          }}
+          animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           className="absolute inset-0 w-32 h-32 -m-8 rounded-full border border-primary/30"
         />
         <motion.div
-          animate={{ 
-            scale: [1, 1.8, 1],
-            opacity: [0.3, 0, 0.3]
-          }}
+          animate={{ scale: [1, 1.8, 1], opacity: [0.3, 0, 0.3] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
           className="absolute inset-0 w-32 h-32 -m-8 rounded-full border border-primary/20"
         />
         
-        {/* Main logo container */}
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
@@ -53,7 +43,6 @@ const LoadingScreen = () => {
         </motion.div>
       </motion.div>
 
-      {/* Logo text */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -61,7 +50,7 @@ const LoadingScreen = () => {
         className="mt-8 text-center"
       >
         <h1 className="font-display text-3xl font-bold tracking-tight">
-          Shadow<span className="text-primary">Auth</span>
+          Wbhf <span className="text-primary">Auth</span>
         </h1>
         <motion.p
           initial={{ opacity: 0 }}
@@ -73,7 +62,6 @@ const LoadingScreen = () => {
         </motion.p>
       </motion.div>
 
-      {/* Loading bar */}
       <motion.div
         initial={{ opacity: 0, width: 0 }}
         animate={{ opacity: 1, width: 200 }}

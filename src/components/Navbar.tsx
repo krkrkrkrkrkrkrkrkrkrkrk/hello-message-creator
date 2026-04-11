@@ -7,7 +7,7 @@ import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 
-const DISCORD_INVITE = "https://discord.gg/GE847sSjDV";
+const DISCORD_INVITE = "https://discord.gg/CyyPTwY9Mq";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,7 +41,7 @@ const Navbar = () => {
                 <div className="absolute inset-0 bg-primary/30 blur-xl" />
               </div>
               <span className="font-display text-xl font-bold text-foreground">
-                Shadow<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Auth</span>
+                Wbhf <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Auth</span>
               </span>
             </motion.div>
           </Link>
@@ -154,7 +154,6 @@ const Navbar = () => {
 };
 
 const NavLink = ({ href, children, mobile }: { href: string; children: React.ReactNode; mobile?: boolean }) => {
-  // Use Link for internal routes, anchor for hash links
   const isInternal = href.startsWith('/') && !href.includes('#');
   
   if (isInternal) {
