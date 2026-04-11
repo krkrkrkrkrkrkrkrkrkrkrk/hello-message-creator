@@ -244,7 +244,7 @@ const Auth = () => {
             transition={{ delay: 0.2 }}
             className="text-3xl font-bold mt-5 tracking-tight"
           >
-            <span className="text-foreground">Shadow</span>
+            <span className="text-foreground">Wbhf </span>
             <span className="text-primary">Auth</span>
           </motion.h1>
           

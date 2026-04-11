@@ -43,6 +43,9 @@ import CryptoPaymentPending from "./pages/CryptoPaymentPending";
 import DocsPublic from "./pages/DocsPublic";
 import DashboardObfuscator from "./pages/DashboardObfuscator";
 import DiscordBot from "./pages/DiscordBot";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Refund from "./pages/Refund";
 
 const queryClient = new QueryClient();
 
@@ -102,7 +105,9 @@ const App = () => {
                 <Route path="/script/:shareCode" element={<ScriptView />} />
                 <Route path="/payment-success" element={<PaymentSuccess />} />
                 <Route path="/payment/pending" element={<CryptoPaymentPending />} />
-                <Route path="*" element={<NotFound />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/refund" element={<Refund />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <AIChatWidget />
