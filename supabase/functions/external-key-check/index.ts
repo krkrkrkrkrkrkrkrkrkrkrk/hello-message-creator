@@ -194,7 +194,7 @@ serve(async (req) => {
       code: STATUS_CODES.KEY_VALID,
       message: "The provided key is valid.",
       data: {
-        note: keyData.note || "ShadowAuth Key",
+        note: keyData.note || "Wbhf Auth Key",
         total_executions: (keyData.execution_count || 0) + 1,
         auth_expire: keyData.expires_at 
           ? Math.floor(new Date(keyData.expires_at).getTime() / 1000)

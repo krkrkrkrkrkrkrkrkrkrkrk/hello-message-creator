@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const defaultSystemPrompt = `You are the ShadowAuth AI assistant, expert in Roblox Lua scripting and script protection.
+const defaultSystemPrompt = `You are the Wbhf Auth AI assistant, expert in Roblox Lua scripting and script protection.
 
 ROBLOX KNOWLEDGE:
 - Full Roblox API: game, workspace, Players, ReplicatedStorage, TweenService, RunService, etc.
@@ -16,7 +16,7 @@ ROBLOX KNOWLEDGE:
 PLATFORM HELP:
 - Script management and license keys
 - Discord bot setup
-- ShadowAuth API usage
+- Wbhf Auth API usage
 - Script obfuscation and protection
 
 FORMATTING:

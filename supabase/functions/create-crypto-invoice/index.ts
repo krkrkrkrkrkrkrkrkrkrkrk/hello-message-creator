@@ -248,8 +248,8 @@ serve(async (req) => {
     const ipnCallback = `${Deno.env.get("SUPABASE_URL")}/functions/v1/crypto-webhook`;
 
     const orderDescription = is_marketplace 
-      ? `ShadowAuth Marketplace - ${plan_name}`
-      : `ShadowAuth ${plan_name} Plan - ${days} days`;
+      ? `Wbhf Auth Marketplace - ${plan_name}`
+      : `Wbhf Auth ${plan_name} Plan - ${days} days`;
 
     // Create invoice via NOWPayments API
     const invoiceResponse = await fetch("https://api.nowpayments.io/v1/invoice", {

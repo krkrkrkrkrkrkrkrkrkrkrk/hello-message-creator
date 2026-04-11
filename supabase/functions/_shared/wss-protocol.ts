@@ -305,7 +305,7 @@ export function generateWSSBootstrap(
   scriptId: string,
   sessionToken: string
 ): string {
-  return `-- ShadowAuth WSS Bootstrap v1
+  return `-- Wbhf Auth WSS Bootstrap v1
 local W = (syn and syn.websocket) or WebSocket
 if not W then return error("[SA] WSS not supported") end
 local s = W.connect("${wssUrl}?s=${scriptId}&t=${sessionToken}")
@@ -317,7 +317,7 @@ s.OnClose:Wait()`;
  * Generate Lua code for binary stream decryption
  */
 export function generateBinaryDecoder(derivedKey: string): string {
-  return `-- ShadowAuth Binary Decoder
+  return `-- Wbhf Auth Binary Decoder
 local function _SA_DECODE(bytes, key)
   local r = {}
   for i = 1, #bytes do
@@ -341,7 +341,7 @@ export function generateWSSClient(
   challenge: string
 ): string {
   return `--[[
-  ShadowAuth WSS Client v1 (Luarmor-identical)
+  Wbhf Auth WSS Client v1 (Luarmor-identical)
   Binary stream + HMAC challenge-response
 ]]
 
@@ -352,7 +352,7 @@ local P = Players.LocalPlayer
 -- WSS connection
 local W = (syn and syn.websocket) or WebSocket
 if not W then
-  return error("[ShadowAuth] WebSocket not supported by this executor")
+  return error("[Wbhf Auth] WebSocket not supported by this executor")
 end
 
 local hw = (gethwid and gethwid()) or game:GetService("RbxAnalyticsService"):GetClientId():gsub("-","")
@@ -395,7 +395,7 @@ local function connect()
   end)
   
   if not ok or not s then
-    return error("[ShadowAuth] WSS connection failed")
+    return error("[Wbhf Auth] WSS connection failed")
   end
   
   socket = s
@@ -472,7 +472,7 @@ local function connect()
         reason = reason .. string.char(bytes[i])
       end
       socket:Close()
-      error("[ShadowAuth] Kicked: " .. reason)
+      error("[Wbhf Auth] Kicked: " .. reason)
     
     -- Warning (0x31)
     elseif pktType == 0x31 then
@@ -480,7 +480,7 @@ local function connect()
       for i = 6, #bytes do
         msg = msg .. string.char(bytes[i])
       end
-      warn("[ShadowAuth] Warning: " .. msg)
+      warn("[Wbhf Auth] Warning: " .. msg)
     end
   end)
   
