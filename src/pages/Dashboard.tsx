@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import ProjectOnboarding from "@/components/dashboard/ProjectOnboarding";
 import SecurityMonitoring from "@/components/dashboard/SecurityMonitoring";
 import WorldMap from "@/components/dashboard/WorldMap";
 import UserDistributionChart from "@/components/dashboard/UserDistributionChart";
@@ -231,6 +232,24 @@ const Dashboard = () => {
           </div>
           <div className="h-[450px] bg-muted/50 rounded-xl" />
         </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show onboarding if user has no scripts
+  if (scriptsCount === 0) {
+    return (
+      <DashboardLayout breadcrumb="Main Dashboard" title="Main Dashboard">
+        <ProjectOnboarding
+          userId={user?.id}
+          onProjectCreated={() => {
+            setLoading(true);
+            fetchStats().then(() => setLoading(false));
+            // Force sidebar refresh
+            window.location.reload();
+          }}
+          maxScripts={3}
+        />
       </DashboardLayout>
     );
   }

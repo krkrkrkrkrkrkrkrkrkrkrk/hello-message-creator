@@ -213,7 +213,7 @@ export default function DashboardHeader({
             variant="outline"
             size="sm"
             className="h-8 px-2.5 rounded-md gap-1.5 border-border hover:bg-muted"
-            onClick={() => window.open("https://discord.gg/GE847sSjDV", "_blank")}
+            onClick={() => window.open("https://discord.gg/CyyPTwY9Mq", "_blank")}
           >
             <DiscordIcon className="w-4 h-4 text-[#5865F2]" />
             <span className="text-sm text-foreground">Discord</span>
