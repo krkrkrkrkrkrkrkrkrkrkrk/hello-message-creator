@@ -236,6 +236,24 @@ const Dashboard = () => {
     );
   }
 
+  // Show onboarding if user has no scripts
+  if (scriptsCount === 0) {
+    return (
+      <DashboardLayout breadcrumb="Main Dashboard" title="Main Dashboard">
+        <ProjectOnboarding
+          userId={user?.id}
+          onProjectCreated={() => {
+            setLoading(true);
+            fetchStats().then(() => setLoading(false));
+            // Force sidebar refresh
+            window.location.reload();
+          }}
+          maxScripts={3}
+        />
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout breadcrumb="Main Dashboard" title="Main Dashboard">
       {/* User Welcome Card */}
