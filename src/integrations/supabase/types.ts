@@ -200,32 +200,55 @@ export type Database = {
       discord_servers: {
         Row: {
           bot_token: string | null
+          buyer_role_id: string | null
           created_at: string
           guild_id: string | null
+          hwid_reset_cooldown_hours: number
           id: string
+          manager_role_id: string | null
           public_key: string | null
+          script_id: string | null
           updated_at: string
           user_id: string
+          webhook_url: string | null
         }
         Insert: {
           bot_token?: string | null
+          buyer_role_id?: string | null
           created_at?: string
           guild_id?: string | null
+          hwid_reset_cooldown_hours?: number
           id?: string
+          manager_role_id?: string | null
           public_key?: string | null
+          script_id?: string | null
           updated_at?: string
           user_id: string
+          webhook_url?: string | null
         }
         Update: {
           bot_token?: string | null
+          buyer_role_id?: string | null
           created_at?: string
           guild_id?: string | null
+          hwid_reset_cooldown_hours?: number
           id?: string
+          manager_role_id?: string | null
           public_key?: string | null
+          script_id?: string | null
           updated_at?: string
           user_id?: string
+          webhook_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "discord_servers_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       key_system_providers: {
         Row: {
@@ -575,42 +598,54 @@ export type Database = {
       script_keys: {
         Row: {
           created_at: string
+          discord_avatar_url: string | null
           discord_id: string | null
           duration_type: string | null
+          execution_count: number
           expires_at: string | null
           hwid: string | null
+          hwid_reset_count: number
           id: string
           is_banned: boolean
           key_format: string | null
           key_value: string
+          last_hwid_reset: string | null
           note: string | null
           script_id: string
           used_at: string | null
         }
         Insert: {
           created_at?: string
+          discord_avatar_url?: string | null
           discord_id?: string | null
           duration_type?: string | null
+          execution_count?: number
           expires_at?: string | null
           hwid?: string | null
+          hwid_reset_count?: number
           id?: string
           is_banned?: boolean
           key_format?: string | null
           key_value?: string
+          last_hwid_reset?: string | null
           note?: string | null
           script_id: string
           used_at?: string | null
         }
         Update: {
           created_at?: string
+          discord_avatar_url?: string | null
           discord_id?: string | null
           duration_type?: string | null
+          execution_count?: number
           expires_at?: string | null
           hwid?: string | null
+          hwid_reset_count?: number
           id?: string
           is_banned?: boolean
           key_format?: string | null
           key_value?: string
+          last_hwid_reset?: string | null
           note?: string | null
           script_id?: string
           used_at?: string | null
