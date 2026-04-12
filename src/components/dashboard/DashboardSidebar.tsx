@@ -154,20 +154,23 @@ export default function DashboardSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<{ display_name: string | null; avatar_url: string | null; email: string | null } | null>(null);
+  const [projectName, setProjectName] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("display_name, avatar_url, email")
-          .eq("id", user.id)
-          .single();
-        if (data) setProfile(data);
+        const [profileRes, scriptsRes] = await Promise.all([
+          supabase.from("profiles").select("display_name, avatar_url, email").eq("id", user.id).single(),
+          supabase.from("scripts").select("name").eq("user_id", user.id).order("created_at", { ascending: true }).limit(1),
+        ]);
+        if (profileRes.data) setProfile(profileRes.data);
+        if (scriptsRes.data && scriptsRes.data.length > 0) {
+          setProjectName(scriptsRes.data[0].name);
+        }
       }
     };
-    fetchProfile();
+    fetchData();
   }, []);
 
   const handleLogout = async () => {
@@ -202,7 +205,9 @@ export default function DashboardSidebar() {
       >
         <div className="rounded-2xl bg-primary py-6 px-4 flex items-center justify-center gap-2">
           <ShieldIcon className="w-6 h-6 text-primary-foreground" />
-          <span className="text-lg font-bold text-primary-foreground tracking-wide">SHADOWHUB</span>
+          <span className="text-lg font-bold text-primary-foreground tracking-wide truncate">
+            {projectName ? projectName.toUpperCase() : "WBHF AUTH"}
+          </span>
         </div>
       </motion.div>
 

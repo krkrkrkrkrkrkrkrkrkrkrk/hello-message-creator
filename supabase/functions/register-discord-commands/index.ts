@@ -13,11 +13,11 @@ const corsHeaders = {
 const commands = [
   {
     name: "login",
-    description: "Link your ShadowAuth account to this Discord server",
+    description: "Link your Wbhf Auth account to this Discord server",
     options: [
       {
         name: "api_key",
-        description: "Your ShadowAuth API key (find it in Developer Settings)",
+        description: "Your Wbhf Auth API key (find it in Developer Settings)",
         type: 3,
         required: true,
       },
