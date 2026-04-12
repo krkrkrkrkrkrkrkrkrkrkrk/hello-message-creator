@@ -124,16 +124,25 @@ const Auth = () => {
         });
         if (authError) throw authError;
 
-        if (authData.user) {
-          // Wait a moment for the profile trigger to create the profile
+        // Check if email confirmation is required
+        if (authData.user && !authData.session) {
+          // Email confirmation required
+          toast.success("Account created! Please check your email to confirm your account before logging in.", { duration: 8000 });
+          setIsLogin(true);
+          setEmail("");
+          setPassword("");
+          setLoading(false);
+          return;
+        }
+
+        if (authData.user && authData.session) {
+          // Auto-confirmed - proceed with profile setup
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           if (hasSubscriptionCode && codeValidation?.valid && subscriptionCode) {
-            // User has valid subscription code
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + (codeValidation.days || 30));
 
-            // Update the subscription code as used
             await supabase
               .from("subscription_codes")
               .update({
@@ -144,8 +153,7 @@ const Auth = () => {
               .eq("code", subscriptionCode)
               .eq("is_used", false);
 
-            // Update profile with subscription info
-            const { error: profileError } = await supabase
+            await supabase
               .from("profiles")
               .upsert(
                 {
@@ -158,13 +166,8 @@ const Auth = () => {
                 },
                 { onConflict: "user_id" }
               );
-
-            if (profileError) {
-              console.error("Failed to update profile:", profileError);
-            }
           } else {
-            // Free user without subscription
-            const { error: profileError } = await supabase
+            await supabase
               .from("profiles")
               .upsert(
                 {
@@ -175,15 +178,11 @@ const Auth = () => {
                 },
                 { onConflict: "user_id" }
               );
-
-            if (profileError) {
-              console.error("Failed to update profile:", profileError);
-            }
           }
-        }
 
-        toast.success("Account created successfully!");
-        navigate("/dashboard");
+          toast.success("Account created successfully!");
+          navigate("/dashboard");
+        }
       }
     } catch (error: any) {
       toast.error(error.message);
