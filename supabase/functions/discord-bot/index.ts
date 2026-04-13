@@ -27,9 +27,17 @@ async function verifyDiscordSignature(
     return false;
   }
   
+  // Clean the public key - remove whitespace, ensure only hex chars
+  const cleanKey = publicKey.replace(/[^a-fA-F0-9]/g, '');
+  
+  if (cleanKey.length !== 64) {
+    console.error(`Public key has invalid length: ${cleanKey.length} (original: ${publicKey.length}), expected 64 hex chars`);
+    return false;
+  }
+  
   try {
     const signatureBytes = hexToUint8Array(signature);
-    const publicKeyBytes = hexToUint8Array(publicKey);
+    const publicKeyBytes = hexToUint8Array(cleanKey);
     const messageBytes = new TextEncoder().encode(timestamp + body);
     
     return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
@@ -1825,10 +1833,32 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    console.log("Calling findCredentialsByPublicKey...");
+    // First try: find credentials from database
+    let credentials = await findCredentialsByPublicKey(supabase, body, signature, timestamp);
     
-    // Find credentials that match this signature
-    const credentials = await findCredentialsByPublicKey(supabase, body, signature, timestamp);
+    // Fallback: try the global DISCORD_PUBLIC_KEY secret for initial PING validation
+    if (!credentials) {
+      const globalPublicKey = Deno.env.get("DISCORD_PUBLIC_KEY");
+      if (globalPublicKey) {
+        console.log("Trying global DISCORD_PUBLIC_KEY fallback...");
+        const isValid = await verifyDiscordSignature(signature, timestamp, body, globalPublicKey);
+        if (isValid) {
+          console.log("Global public key verified! This is likely a PING from Discord.");
+          const interaction = JSON.parse(body);
+          if (interaction.type === 1) {
+            console.log("Responding to PING with global key");
+            return new Response(JSON.stringify({ type: 1 }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          // For non-PING, we need bot token from DB
+          const globalBotToken = Deno.env.get("DISCORD_BOT_TOKEN");
+          if (globalBotToken) {
+            credentials = { botToken: globalBotToken, publicKey: globalPublicKey, guildId: interaction.guild_id || "" };
+          }
+        }
+      }
+    }
     
     console.log("Credentials found:", !!credentials);
     
