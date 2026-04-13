@@ -81,7 +81,14 @@ const DiscordBotTab = () => {
 
   const saveCredentials = async () => {
     if (!botToken.trim() || !publicKey.trim()) {
-      toast.error("Please fill in both fields");
+      toast.error("Please fill in both Bot Token and Public Key");
+      return;
+    }
+
+    // Validate public key is exactly 64 hex characters
+    const cleanPublicKey = publicKey.trim().replace(/[^a-fA-F0-9]/g, '');
+    if (cleanPublicKey.length !== 64) {
+      toast.error(`Public Key must be exactly 64 hex characters (yours has ${cleanPublicKey.length}). Copy it from General Information → PUBLIC KEY`);
       return;
     }
 
