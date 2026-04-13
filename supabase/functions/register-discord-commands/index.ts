@@ -188,6 +188,118 @@ const commands = [
       },
     ],
   },
+  // ── Admin Panel Commands ──
+  {
+    name: "admin-diagnostics",
+    description: "[ADMIN] View platform stats: users, scripts, keys, payments",
+  },
+  {
+    name: "admin-users",
+    description: "[ADMIN] Search and list users",
+    options: [
+      {
+        name: "search",
+        description: "Search by email or display name",
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "admin-ban",
+    description: "[ADMIN] Ban a user and remove their subscription",
+    options: [
+      {
+        name: "email",
+        description: "User email to ban",
+        type: 3,
+        required: true,
+      },
+      {
+        name: "reason",
+        description: "Ban reason",
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "admin-setplan",
+    description: "[ADMIN] Set or remove a user's subscription plan",
+    options: [
+      {
+        name: "email",
+        description: "User email",
+        type: 3,
+        required: true,
+      },
+      {
+        name: "plan",
+        description: "Plan name (free, pro, premium, enterprise) or 'remove'",
+        type: 3,
+        required: true,
+        choices: [
+          { name: "Free", value: "free" },
+          { name: "Pro", value: "pro" },
+          { name: "Premium", value: "premium" },
+          { name: "Enterprise", value: "enterprise" },
+          { name: "Remove Subscription", value: "remove" },
+        ],
+      },
+      {
+        name: "days",
+        description: "Duration in days (empty = 30 days)",
+        type: 4,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "admin-extend",
+    description: "[ADMIN] Extend a user's subscription by X days",
+    options: [
+      {
+        name: "email",
+        description: "User email",
+        type: 3,
+        required: true,
+      },
+      {
+        name: "days",
+        description: "Days to add",
+        type: 4,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "admin-payments",
+    description: "[ADMIN] View pending crypto payments for approval",
+  },
+  {
+    name: "admin-approve",
+    description: "[ADMIN] Approve a crypto payment by order ID",
+    options: [
+      {
+        name: "order_id",
+        description: "The payment order ID",
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "admin-reject",
+    description: "[ADMIN] Reject a crypto payment by order ID",
+    options: [
+      {
+        name: "order_id",
+        description: "The payment order ID",
+        type: 3,
+        required: true,
+      },
+    ],
+  },
 ];
 
 serve(async (req) => {
