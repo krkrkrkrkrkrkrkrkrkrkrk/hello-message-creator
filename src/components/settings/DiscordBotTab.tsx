@@ -118,7 +118,7 @@ const DiscordBotTab = () => {
           .from("discord_servers")
           .update({
             bot_token: botToken.trim(),
-            public_key: publicKey.trim(),
+            public_key: cleanPublicKey,
             guild_id: finalGuildId,
             updated_at: new Date().toISOString(),
           })
@@ -133,7 +133,7 @@ const DiscordBotTab = () => {
             user_id: user.id,
             guild_id: finalGuildId,
             bot_token: botToken.trim(),
-            public_key: publicKey.trim(),
+            public_key: cleanPublicKey,
           }]);
 
         if (error) throw error;
