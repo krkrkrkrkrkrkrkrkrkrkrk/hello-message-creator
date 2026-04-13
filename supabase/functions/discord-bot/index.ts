@@ -1197,6 +1197,210 @@ async function handleSlashCommand(interaction: any, supabase: any) {
       );
     }
 
+    // ══════════════════════════════════════════
+    // ADMIN PANEL COMMANDS
+    // ══════════════════════════════════════════
+
+    case "admin-diagnostics": {
+      // Fetch platform stats
+      const { count: totalUsersCount } = await supabase.from("profiles").select("id", { count: "exact", head: true });
+      const { count: totalScriptsCount } = await supabase.from("scripts").select("id", { count: "exact", head: true });
+      const { count: totalKeysCount } = await supabase.from("script_keys").select("id", { count: "exact", head: true });
+      const { count: pendingPaymentsCount } = await supabase.from("crypto_payments").select("id", { count: "exact", head: true }).eq("status", "pending");
+      const { count: activeSubsCount } = await supabase.from("profiles").select("id", { count: "exact", head: true }).neq("subscription_plan", "free");
+
+      const { data: recentUsers } = await supabase
+        .from("profiles")
+        .select("display_name, email, subscription_plan, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      const recentList = recentUsers?.map((u: any, i: number) => 
+        `${i + 1}. **${u.display_name || u.email || "Unknown"}** — ${u.subscription_plan} (${new Date(u.created_at).toLocaleDateString()})`
+      ).join("\n") || "None";
+
+      return {
+        embed: {
+          title: "📊 Wbhf Auth — Admin Diagnostics",
+          color: 0x5865F2,
+          fields: [
+            { name: "👥 Total Users", value: `${totalUsersCount ?? 0}`, inline: true },
+            { name: "📜 Total Scripts", value: `${totalScriptsCount ?? 0}`, inline: true },
+            { name: "🔑 Total Keys", value: `${totalKeysCount ?? 0}`, inline: true },
+            { name: "💰 Active Subscriptions", value: `${activeSubsCount ?? 0}`, inline: true },
+            { name: "⏳ Pending Payments", value: `${pendingPaymentsCount ?? 0}`, inline: true },
+            { name: "\u200b", value: "\u200b", inline: true },
+            { name: "📝 Recent Registrations", value: recentList, inline: false },
+          ],
+          footer: { text: `Wbhf Auth Admin • ${formatUTCDate()}` },
+          timestamp: getUTCTimestamp(),
+        },
+        components: [],
+        isPublic: false,
+      };
+    }
+
+    case "admin-users": {
+      const search = options?.find((o: any) => o.name === "search")?.value;
+      
+      let query = supabase
+        .from("profiles")
+        .select("display_name, email, subscription_plan, subscription_expires_at, discord_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      
+      if (search) {
+        query = query.or(`email.ilike.%${search}%,display_name.ilike.%${search}%`);
+      }
+
+      const { data: users } = await query;
+      
+      if (!users || users.length === 0) {
+        return createEmbed("❌ No Users Found", search ? `No users matching "${search}"` : "No users found.", 0xFF0000);
+      }
+
+      const userList = users.map((u: any, i: number) => {
+        const plan = u.subscription_plan || "free";
+        const expires = u.subscription_expires_at ? new Date(u.subscription_expires_at).toLocaleDateString() : "N/A";
+        const discord = u.discord_id ? `<@${u.discord_id}>` : "—";
+        return `**${i + 1}. ${u.display_name || u.email || "Unknown"}**\n📧 ${u.email || "N/A"} | 📦 ${plan} | ⏰ ${expires} | 💬 ${discord}`;
+      }).join("\n\n");
+
+      return {
+        embed: {
+          title: `👥 Users ${search ? `matching "${search}"` : "(Recent)"}`,
+          description: userList,
+          color: 0x5865F2,
+          footer: { text: `Showing ${users.length} users • ${formatUTCDate()}` },
+        },
+        components: [],
+        isPublic: false,
+      };
+    }
+
+    case "admin-ban": {
+      const email = options?.find((o: any) => o.name === "email")?.value;
+      const reason = options?.find((o: any) => o.name === "reason")?.value;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, user_id, display_name, subscription_plan")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (!profile) {
+        return createEmbed("❌ User Not Found", `No user found with email: ${email}`, 0xFF0000);
+      }
+
+      // Remove subscription
+      await supabase
+        .from("profiles")
+        .update({ subscription_plan: "free", subscription_expires_at: null, subscription_started_at: null })
+        .eq("id", profile.id);
+
+      // Ban all their keys
+      const { data: userScripts } = await supabase.from("scripts").select("id").eq("user_id", profile.user_id);
+      if (userScripts && userScripts.length > 0) {
+        await supabase.from("script_keys").update({ is_banned: true }).in("script_id", userScripts.map((s: any) => s.id));
+      }
+
+      return createEmbed(
+        "🔨 User Banned",
+        `**${profile.display_name || email}**\n\n📧 ${email}\n📦 Was: ${profile.subscription_plan}\n📝 Reason: ${reason || "No reason"}\n🔑 All keys banned.`,
+        0xFF0000
+      );
+    }
+
+    case "admin-setplan": {
+      const email = options?.find((o: any) => o.name === "email")?.value;
+      const plan = options?.find((o: any) => o.name === "plan")?.value;
+      const planDays = options?.find((o: any) => o.name === "days")?.value || 30;
+
+      const { data: profile } = await supabase.from("profiles").select("id, display_name, subscription_plan").eq("email", email).maybeSingle();
+      if (!profile) return createEmbed("❌ User Not Found", `No user: ${email}`, 0xFF0000);
+
+      if (plan === "remove") {
+        await supabase.from("profiles").update({ subscription_plan: "free", subscription_expires_at: null, subscription_started_at: null }).eq("id", profile.id);
+        return createEmbed("✅ Subscription Removed", `**${profile.display_name || email}** → Free plan.`, 0x00FF00);
+      }
+
+      const expiresAt = new Date(Date.now() + planDays * 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from("profiles").update({ subscription_plan: plan, subscription_started_at: new Date().toISOString(), subscription_expires_at: expiresAt }).eq("id", profile.id);
+
+      return createEmbed("✅ Plan Updated", `**${profile.display_name || email}**\n📦 ${plan} | ⏰ ${planDays} days | 📅 ${new Date(expiresAt).toLocaleDateString()}`, 0x00FF00);
+    }
+
+    case "admin-extend": {
+      const email = options?.find((o: any) => o.name === "email")?.value;
+      const extDays = options?.find((o: any) => o.name === "days")?.value;
+
+      const { data: profile } = await supabase.from("profiles").select("id, display_name, subscription_plan, subscription_expires_at").eq("email", email).maybeSingle();
+      if (!profile) return createEmbed("❌ User Not Found", `No user: ${email}`, 0xFF0000);
+
+      const currentExpiry = profile.subscription_expires_at ? new Date(profile.subscription_expires_at) : new Date();
+      const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+      const newExpiry = new Date(baseDate.getTime() + extDays * 24 * 60 * 60 * 1000);
+
+      await supabase.from("profiles").update({ subscription_expires_at: newExpiry.toISOString() }).eq("id", profile.id);
+
+      return createEmbed("✅ Extended", `**${profile.display_name || email}**\n📦 ${profile.subscription_plan} | +${extDays} days\n⏰ New: ${newExpiry.toLocaleDateString()}`, 0x00FF00);
+    }
+
+    case "admin-payments": {
+      const { data: payments } = await supabase.from("crypto_payments").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(10);
+
+      if (!payments || payments.length === 0) {
+        return createEmbed("✅ No Pending Payments", "All payments processed.", 0x00FF00);
+      }
+
+      const paymentList = payments.map((p: any, i: number) => 
+        `**${i + 1}.** \`${p.order_id}\`\n💰 $${p.amount} — ${p.plan_name} | 📅 ${new Date(p.created_at).toLocaleDateString()}`
+      ).join("\n\n");
+
+      return {
+        embed: {
+          title: `⏳ Pending Payments (${payments.length})`,
+          description: paymentList + "\n\n**Use** `/admin-approve` **or** `/admin-reject`",
+          color: 0xFFAA00,
+          footer: { text: `Wbhf Auth Admin • ${formatUTCDate()}` },
+        },
+        components: [],
+        isPublic: false,
+      };
+    }
+
+    case "admin-approve": {
+      const orderId = options?.find((o: any) => o.name === "order_id")?.value;
+      const { data: payment } = await supabase.from("crypto_payments").select("*").eq("order_id", orderId).maybeSingle();
+
+      if (!payment) return createEmbed("❌ Not Found", `No payment: ${orderId}`, 0xFF0000);
+      if (payment.status !== "pending") return createEmbed("⚠️ Already Processed", `Status: ${payment.status}`, 0xFFAA00);
+
+      const randomPart = crypto.randomUUID().replace(/-/g, '').substring(0, 16).toUpperCase();
+      const newApiKey = `WBHF-${randomPart}`;
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      await supabase.from("crypto_payments").update({ status: "completed", api_key: newApiKey }).eq("id", payment.id);
+      await supabase.from("subscription_codes").insert({ code: newApiKey, plan_name: payment.plan_name, duration_days: 30, price: payment.amount, is_used: false });
+
+      if (payment.user_id) {
+        await supabase.from("profiles").update({ subscription_plan: payment.plan_name, subscription_started_at: new Date().toISOString(), subscription_expires_at: expiresAt.toISOString() }).eq("user_id", payment.user_id);
+      }
+
+      return createEmbed("✅ Payment Approved", `**Order:** \`${orderId}\`\n💰 $${payment.amount} — ${payment.plan_name}\n🔑 Key: \`${newApiKey}\``, 0x00FF00);
+    }
+
+    case "admin-reject": {
+      const orderId = options?.find((o: any) => o.name === "order_id")?.value;
+      const { data: payment } = await supabase.from("crypto_payments").select("*").eq("order_id", orderId).maybeSingle();
+
+      if (!payment) return createEmbed("❌ Not Found", `No payment: ${orderId}`, 0xFF0000);
+      if (payment.status !== "pending") return createEmbed("⚠️ Already Processed", `Status: ${payment.status}`, 0xFFAA00);
+
+      await supabase.from("crypto_payments").update({ status: "rejected" }).eq("id", payment.id);
+      return createEmbed("❌ Payment Rejected", `**Order:** \`${orderId}\`\n💰 $${payment.amount} — ${payment.plan_name}`, 0xFF0000);
+    }
+
     default:
       return createEmbed("❌ Unknown Command", "This command is not recognized.", 0xFF0000);
   }
