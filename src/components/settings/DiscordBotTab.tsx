@@ -93,18 +93,6 @@ const DiscordBotTab = () => {
         return;
       }
 
-      // Get user's API key
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("api_key")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.api_key) {
-        toast.error("Please generate an API key first in the Developer tab");
-        return;
-      }
-
       // Check if user already has a config
       const { data: existingConfig } = await supabase
         .from("discord_servers")

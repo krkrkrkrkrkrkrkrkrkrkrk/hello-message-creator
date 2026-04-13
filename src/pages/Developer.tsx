@@ -35,7 +35,7 @@ const Developer = () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("api_key")
-        .eq("id", session.user.id)
+        .eq("user_id", session.user.id)
         .maybeSingle();
 
       if (error) throw error;
@@ -69,7 +69,7 @@ const Developer = () => {
       const { error } = await supabase
         .from("profiles")
         .update({ api_key: newKey })
-        .eq("id", session.user.id);
+        .eq("user_id", session.user.id);
 
       if (error) throw error;
 
