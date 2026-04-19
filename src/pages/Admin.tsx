@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DiscordBotTab from "@/components/settings/DiscordBotTab";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -794,7 +795,17 @@ const Admin = () => {
               <Users className="w-4 h-4" />
               Users & Subscriptions
             </TabsTrigger>
+            <TabsTrigger value="discord-bot" className="gap-2">
+              <Shield className="w-4 h-4" />
+              Admin Bot
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="discord-bot">
+            <div className="max-w-4xl">
+              <DiscordBotTab />
+            </div>
+          </TabsContent>
 
           {/* Sales Tab */}
           <TabsContent value="sales">
