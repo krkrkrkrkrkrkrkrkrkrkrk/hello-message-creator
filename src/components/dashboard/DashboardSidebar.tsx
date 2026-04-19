@@ -143,7 +143,6 @@ const navSections: NavSection[] = [
       { icon: WebhooksIcon, label: "Webhooks", href: "/settings/urls" },
       { icon: ApiKeysIcon, label: "Code Editor", href: "/code-editor" },
       { icon: HwidsIcon, label: "HWIDs", href: "/vanguard" },
-      { icon: DiscordLogsIcon, label: "Discord Bot", href: "/discord-bot" },
       { icon: PagesIcon, label: "Overview Pages", href: "/documentation" },
       { icon: SettingsIcon, label: "Settings", href: "/settings/account" },
     ],
