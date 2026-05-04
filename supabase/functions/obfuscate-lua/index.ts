@@ -413,6 +413,51 @@ class RC4 {
   }
 }
 
+// ============================================================================
+// ANTI-DEOBFUSCATOR TAMPER TRAPS
+// ----------------------------------------------------------------------------
+// Generates randomized snippets that index a vararg table with a value derived
+// from random byte arithmetic. At normal runtime the call site is never
+// actually executed (wrapped in a never-true predicate), but symbolic
+// execution / VM emulation used by deobfuscators will follow the branch and
+// crash because the index is non-numeric or out of range.
+// ============================================================================
+function randName(prefix = "_w"): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let s = prefix;
+  for (let i = 0; i < 6 + Math.floor(Math.random() * 6); i++) {
+    s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s;
+}
+
+function buildAntiTamperSnippet(): string {
+  const fn = randName("_at");
+  const guard = randName("_g");
+  const variants = [
+    `local function ${fn}(...) return ({...})[math.random(string.byte(string.char(math.random(1,254))), string.byte(string.char(math.random(1000,254000)/1000)))] end local ${guard}=({})[1] if ${guard} then ${fn}(${guard}) end`,
+    `local function ${fn}(...) local t={...} return t[string.byte(string.char(math.random(1,254)))+#t*0] end local ${guard}=tostring(({})[1]) if #${guard}>0 then ${fn}(${guard}) end`,
+    `local function ${fn}(...) return ({...})[({nil})[math.random(1,2)] or string.byte(string.char(math.random(1,254)))] end pcall(function() if ({})[math.random(2,9)] then ${fn}(0) end end)`,
+  ];
+  return variants[Math.floor(Math.random() * variants.length)];
+}
+
+function injectAntiTamperTraps(source: string): string {
+  // Inject 2-3 traps at random newline boundaries (avoid splitting strings).
+  const lines = source.split("\n");
+  if (lines.length < 4) return buildAntiTamperSnippet() + "\n" + source;
+  const insertCount = 2 + Math.floor(Math.random() * 2);
+  const positions = new Set<number>();
+  for (let i = 0; i < insertCount; i++) {
+    positions.add(1 + Math.floor(Math.random() * (lines.length - 2)));
+  }
+  const sorted = [...positions].sort((a, b) => b - a);
+  for (const p of sorted) {
+    lines.splice(p, 0, buildAntiTamperSnippet());
+  }
+  return buildAntiTamperSnippet() + "\n" + lines.join("\n");
+}
+
 function obfuscateLocal(source: string, options: Record<string, unknown> = {}): string {
   const _settings = {
     comment: '// Wbhf Auth Protected',
@@ -618,8 +663,15 @@ serve(async (req) => {
     console.log('Options:', JSON.stringify(options || {}));
 
     // Process macros
-    const { cleanCode, macros } = extractMacros(code);
+    const { cleanCode: rawClean, macros } = extractMacros(code);
     console.log(`Found ${macros.length} macro regions`);
+
+    // Inject anti-deobfuscator tamper traps (randomized variants).
+    // These create invalid table indexing at runtime which crashes
+    // most deobfuscators/dumpers that simulate execution (e.g. Luraph deobfs).
+    const cleanCode = options?.antiTamper === false
+      ? rawClean
+      : injectAntiTamperTraps(rawClean);
 
     // Check if Luraph API should be used
     const useLuraph = options?.useLuraph === true;
