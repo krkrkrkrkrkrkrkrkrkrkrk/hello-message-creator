@@ -442,6 +442,37 @@ function buildAntiTamperSnippet(): string {
   return variants[Math.floor(Math.random() * variants.length)];
 }
 
+// Anti-stack-jump prologue: captures original critical globals as upvalues BEFORE
+// any attacker code can wrap our script in a `function(getfenv,setfenv,rawget,...)`
+// stack-jump shim (the pattern used by leaked Syscure cracks). If those globals are
+// later swapped out, identity check fails and we trigger a tamper trap.
+function buildAntiStackJumpPrologue(): string {
+  const r = (p: string) => p + Math.random().toString(36).slice(2, 8);
+  const _gf = r("_gf"), _sf = r("_sf"), _rg = r("_rg"), _rs = r("_rs"),
+        _sm = r("_sm"), _gm = r("_gm"), _chk = r("_chk"), _trap = r("_trap"),
+        _sentinel = r("_s"), _probe = r("_p");
+
+  // Sentinel probe: stack-jump shims pass nil for the first N args and reassign
+  // them to getfenv/setfenv/rawget. We pass a non-nil sentinel; if it survives,
+  // no shim wrapped us. If the shim ran, our captured refs will mismatch _G.
+  return `
+local ${_gf}, ${_sf}, ${_rg}, ${_rs}, ${_sm}, ${_gm} = getfenv, setfenv, rawget, rawset, setmetatable, getmetatable
+local ${_sentinel} = {}
+local ${_probe} = (function(s) return s end)(${_sentinel})
+local function ${_trap}() return ({})[(function() return nil end)()] end
+local function ${_chk}()
+  if ${_probe} ~= ${_sentinel} then return ${_trap}() end
+  if rawequal == nil then return ${_trap}() end
+  if not rawequal(${_gf}, getfenv) then return ${_trap}() end
+  if not rawequal(${_sf}, setfenv) then return ${_trap}() end
+  if not rawequal(${_rg}, rawget) then return ${_trap}() end
+  if not rawequal(${_sm}, setmetatable) then return ${_trap}() end
+end
+${_chk}()
+pcall(${_chk})
+`.trim();
+}
+
 function injectAntiTamperTraps(source: string): string {
   // Inject 2-3 traps at random newline boundaries (avoid splitting strings).
   const lines = source.split("\n");
@@ -455,7 +486,7 @@ function injectAntiTamperTraps(source: string): string {
   for (const p of sorted) {
     lines.splice(p, 0, buildAntiTamperSnippet());
   }
-  return buildAntiTamperSnippet() + "\n" + lines.join("\n");
+  return buildAntiStackJumpPrologue() + "\n" + buildAntiTamperSnippet() + "\n" + lines.join("\n");
 }
 
 function obfuscateLocal(source: string, options: Record<string, unknown> = {}): string {
