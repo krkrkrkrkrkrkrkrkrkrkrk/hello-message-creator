@@ -618,8 +618,15 @@ serve(async (req) => {
     console.log('Options:', JSON.stringify(options || {}));
 
     // Process macros
-    const { cleanCode, macros } = extractMacros(code);
+    const { cleanCode: rawClean, macros } = extractMacros(code);
     console.log(`Found ${macros.length} macro regions`);
+
+    // Inject anti-deobfuscator tamper traps (randomized variants).
+    // These create invalid table indexing at runtime which crashes
+    // most deobfuscators/dumpers that simulate execution (e.g. Luraph deobfs).
+    const cleanCode = options?.antiTamper === false
+      ? rawClean
+      : injectAntiTamperTraps(rawClean);
 
     // Check if Luraph API should be used
     const useLuraph = options?.useLuraph === true;
