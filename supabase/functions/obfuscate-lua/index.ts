@@ -486,7 +486,7 @@ function injectAntiTamperTraps(source: string): string {
   for (const p of sorted) {
     lines.splice(p, 0, buildAntiTamperSnippet());
   }
-  return buildAntiTamperSnippet() + "\n" + lines.join("\n");
+  return buildAntiStackJumpPrologue() + "\n" + buildAntiTamperSnippet() + "\n" + lines.join("\n");
 }
 
 function obfuscateLocal(source: string, options: Record<string, unknown> = {}): string {
