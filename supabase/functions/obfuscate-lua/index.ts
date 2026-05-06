@@ -450,16 +450,43 @@ function buildAntiStackJumpPrologue(): string {
   const r = (p: string) => p + Math.random().toString(36).slice(2, 8);
   const _gf = r("_gf"), _sf = r("_sf"), _rg = r("_rg"), _rs = r("_rs"),
         _sm = r("_sm"), _gm = r("_gm"), _chk = r("_chk"), _trap = r("_trap"),
-        _sentinel = r("_s"), _probe = r("_p");
+        _sentinel = r("_s"), _probe = r("_p"),
+        _ls = r("_ls"), _hg = r("_hg"), _req = r("_req"), _dinfo = r("_di"),
+        _hp = r("_hp"), _isC = r("_isC");
 
-  // Sentinel probe: stack-jump shims pass nil for the first N args and reassign
-  // them to getfenv/setfenv/rawget. We pass a non-nil sentinel; if it survives,
-  // no shim wrapped us. If the shim ran, our captured refs will mismatch _G.
+  // Multi-layer anti-crack prologue, hardened against the leaked Luarmor/Syscure attack patterns:
+  //   - Stack-jump shim (function(getfenv,setfenv,rawget,...) wrapper) -> sentinel + identity check
+  //   - hookfunction(game.HttpGet, ...) payload dumper (exact pattern from leaked crack)
+  //   - hookfunction(request) / syn.request hook
+  //   - getconnections / hookmetamethod presence on sensitive globals
+  //   - loadstring identity swap
+  //   - debug.info caller validation (detect being called from inside a hook closure)
+  //   - Honeypot decoy function: dumpers that scan + invoke captured upvalues will hit it
   return `
 local ${_gf}, ${_sf}, ${_rg}, ${_rs}, ${_sm}, ${_gm} = getfenv, setfenv, rawget, rawset, setmetatable, getmetatable
+local ${_ls} = loadstring or load
 local ${_sentinel} = {}
 local ${_probe} = (function(s) return s end)(${_sentinel})
 local function ${_trap}() return ({})[(function() return nil end)()] end
+-- Honeypot: looks like a key/loader but any invocation crashes. Dumpers that
+-- enumerate upvalues/constants and replay them will trigger it.
+local function ${_hp}() return ({})[nil] end
+local ${_isC} = pcall(function() return debug and debug.info end)
+-- Detect if a function has been hooked (executor 'hookfunction' replaces the
+-- closure; on most executors the new closure is a C closure with no source).
+local function ${_dinfo}(fn)
+  if not fn then return false end
+  local ok, what = pcall(function()
+    if debug and debug.info then return debug.info(fn, "s") end
+    if debug and debug.getinfo then local i = debug.getinfo(fn, "S"); return i and i.what end
+    return nil
+  end)
+  if not ok then return false end
+  -- Original game.HttpGet / request are C functions ('what' == 'C'). After
+  -- hookfunction wraps with a Lua closure, 'what' becomes 'Lua'/'main'.
+  if what == "Lua" or what == "main" then return true end
+  return false
+end
 local function ${_chk}()
   if ${_probe} ~= ${_sentinel} then return ${_trap}() end
   if rawequal == nil then return ${_trap}() end
@@ -467,9 +494,33 @@ local function ${_chk}()
   if not rawequal(${_sf}, setfenv) then return ${_trap}() end
   if not rawequal(${_rg}, rawget) then return ${_trap}() end
   if not rawequal(${_sm}, setmetatable) then return ${_trap}() end
+  if not rawequal(${_ls}, (loadstring or load)) then return ${_trap}() end
+  -- Detect HttpGet / request hookers (the exact crack technique from leaked cache dumpers)
+  pcall(function()
+    local g = game
+    if g and typeof and typeof(g) == "Instance" then
+      if ${_dinfo}(g.HttpGet) then ${_hp}() end
+      if ${_dinfo}(g.HttpGetAsync) then ${_hp}() end
+      if ${_dinfo}(g.HttpPost) then ${_hp}() end
+    end
+    local rq = rawget(getfenv(), "request") or rawget(getfenv(), "http_request")
+    if rq and ${_dinfo}(rq) then ${_hp}() end
+    local syn = rawget(getfenv(), "syn")
+    if syn and type(syn) == "table" and syn.request and ${_dinfo}(syn.request) then ${_hp}() end
+    -- getconnections / hookmetamethod presence is fine alone, but if combined
+    -- with a hooked HttpGet it's a near-certain crack environment.
+    local gc = rawget(getfenv(), "getconnections")
+    local hm = rawget(getfenv(), "hookmetamethod")
+    if gc and hm and g and ${_dinfo}(g.HttpGet) then ${_hp}() end
+  end)
 end
 ${_chk}()
 pcall(${_chk})
+-- Re-arm the check on a deferred tick so executors that hook AFTER load also get caught.
+pcall(function()
+  if task and task.defer then task.defer(${_chk}) end
+  if task and task.delay then task.delay(0.1, ${_chk}); task.delay(2, ${_chk}) end
+end)
 `.trim();
 }
 
