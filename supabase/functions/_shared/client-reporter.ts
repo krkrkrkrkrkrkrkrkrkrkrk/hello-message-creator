@@ -264,6 +264,20 @@ local function _sa_heartbeat()
         data.detected_threats = clientData.detected
       end
     end
+
+    -- Drain anti-crack reports from obfuscator prologue (__SHADOW_REPORT)
+    pcall(function()
+      local env = (getfenv and getfenv()) or _G
+      local rpt = env.__SHADOW_REPORT
+      if type(rpt) == "table" then
+        for _, e in ipairs(rpt) do
+          if type(e) == "table" and type(e.r) == "string" then
+            table.insert(data.detected_threats, e.r)
+          end
+        end
+        env.__SHADOW_REPORT = {}
+      end
+    end)
     
     local ok, response = pcall(function()
       return H:RequestAsync({
