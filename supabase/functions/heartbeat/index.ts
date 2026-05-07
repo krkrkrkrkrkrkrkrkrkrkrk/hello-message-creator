@@ -247,7 +247,7 @@ serve(async (req) => {
           }
         }
 
-        // Log threats server-side
+        // Log threats server-side + AUTO-BAN 24h on crack signature
         if (detected_threats?.length > 0) {
           await supabase.from("security_events").insert({
             event_type: "client_threat_report",
@@ -256,6 +256,26 @@ serve(async (req) => {
             script_id: ws.script_id,
             details: { threats: detected_threats, executor, hwid },
           });
+
+          const crackHit = detected_threats.find((t: any) =>
+            typeof t === "string" && (t.startsWith("crack_score=") || t === "stack_jump" || t === "http_hook_dump")
+          );
+          if (crackHit && ws.key_id) {
+            const banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            await supabase.from("script_keys")
+              .update({ is_banned: true, ban_expires_at: banUntil, ban_reason: `Auto-ban: ${crackHit}` })
+              .eq("id", ws.key_id);
+            await supabase.from("security_events").insert({
+              event_type: "auto_ban_24h",
+              severity: "critical",
+              ip_address: clientIP,
+              script_id: ws.script_id,
+              details: { reason: crackHit, hwid, key_id: ws.key_id, executor },
+            });
+            return new Response(JSON.stringify({ alive: true, banned: true, ban_reason: "Tampering detected. 24h ban." }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
         }
 
         // Update heartbeat
