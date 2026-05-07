@@ -597,6 +597,8 @@ export type Database = {
       }
       script_keys: {
         Row: {
+          ban_expires_at: string | null
+          ban_reason: string | null
           created_at: string
           discord_avatar_url: string | null
           discord_id: string | null
@@ -615,6 +617,8 @@ export type Database = {
           used_at: string | null
         }
         Insert: {
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           created_at?: string
           discord_avatar_url?: string | null
           discord_id?: string | null
@@ -633,6 +637,8 @@ export type Database = {
           used_at?: string | null
         }
         Update: {
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           created_at?: string
           discord_avatar_url?: string | null
           discord_id?: string | null
