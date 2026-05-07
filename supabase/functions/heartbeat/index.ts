@@ -226,18 +226,25 @@ serve(async (req) => {
           });
         }
 
-        // Check key ban
+        // Check key ban (with auto-expire for timed bans)
         if (ws.key_id) {
           const { data: keyData } = await supabase
             .from("script_keys")
-            .select("is_banned, expires_at")
+            .select("is_banned, expires_at, ban_expires_at, ban_reason")
             .eq("id", ws.key_id)
             .maybeSingle();
 
           if (keyData?.is_banned) {
-            return new Response(JSON.stringify({ alive: true, banned: true, ban_reason: "Key banned" }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
-            });
+            // Auto-unban if 24h timed ban expired
+            if (keyData.ban_expires_at && new Date(keyData.ban_expires_at) < new Date()) {
+              await supabase.from("script_keys")
+                .update({ is_banned: false, ban_expires_at: null, ban_reason: null })
+                .eq("id", ws.key_id);
+            } else {
+              return new Response(JSON.stringify({ alive: true, banned: true, ban_reason: keyData.ban_reason || "Key banned" }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+              });
+            }
           }
 
           if (keyData?.expires_at && new Date(keyData.expires_at) < new Date()) {
