@@ -448,32 +448,36 @@ function buildAntiTamperSnippet(): string {
 // later swapped out, identity check fails and we trigger a tamper trap.
 function buildAntiStackJumpPrologue(): string {
   const r = (p: string) => p + Math.random().toString(36).slice(2, 8);
-  const _gf = r("_gf"), _sf = r("_sf"), _rg = r("_rg"), _rs = r("_rs"),
-        _sm = r("_sm"), _gm = r("_gm"), _chk = r("_chk"), _trap = r("_trap"),
+  const _gf = r("_gf"), _sf = r("_sf"), _rg = r("_rg"),
+        _sm = r("_sm"), _ls = r("_ls"), _chk = r("_chk"), _trap = r("_trap"),
         _sentinel = r("_s"), _probe = r("_p"),
-        _ls = r("_ls"), _hg = r("_hg"), _req = r("_req"), _dinfo = r("_di"),
-        _hp = r("_hp"), _isC = r("_isC");
+        _dinfo = r("_di"), _score = r("_sc"), _report = r("_rpt"),
+        _delayedTrap = r("_dt"), _env = r("_env");
 
-  // Multi-layer anti-crack prologue, hardened against the leaked Luarmor/Syscure attack patterns:
-  //   - Stack-jump shim (function(getfenv,setfenv,rawget,...) wrapper) -> sentinel + identity check
-  //   - hookfunction(game.HttpGet, ...) payload dumper (exact pattern from leaked crack)
-  //   - hookfunction(request) / syn.request hook
-  //   - getconnections / hookmetamethod presence on sensitive globals
-  //   - loadstring identity swap
-  //   - debug.info caller validation (detect being called from inside a hook closure)
-  //   - Honeypot decoy function: dumpers that scan + invoke captured upvalues will hit it
+  // ANTI-CRACK PROLOGUE v3 — score-based (no false positives), silent reporting,
+  // delayed sabotage. Defends against the leaked Luarmor cache-dumper pattern:
+  //   hookfunction(game.HttpGet, fn) -> writefile(cache, content)
+  // and Syscure-style stack-jump shims: function(getfenv,setfenv,rawget,...) wrapper.
+  //
+  // Strategy: gather signals into a SCORE. Only sabotage when score >= threshold,
+  // so legitimate executors that natively wrap HttpGet in Lua don't false-trip.
+  // Sabotage is DELAYED (3-7s) and SILENT — by the time it crashes, the dumper
+  // has already saved partial garbage and can't tell what corrupted it.
   return `
-local ${_gf}, ${_sf}, ${_rg}, ${_rs}, ${_sm}, ${_gm} = getfenv, setfenv, rawget, rawset, setmetatable, getmetatable
+local ${_gf}, ${_sf}, ${_rg}, ${_sm} = getfenv, setfenv, rawget, setmetatable
 local ${_ls} = loadstring or load
 local ${_sentinel} = {}
 local ${_probe} = (function(s) return s end)(${_sentinel})
+local ${_env} = (getfenv and getfenv()) or _ENV or _G
 local function ${_trap}() return ({})[(function() return nil end)()] end
--- Honeypot: looks like a key/loader but any invocation crashes. Dumpers that
--- enumerate upvalues/constants and replay them will trigger it.
-local function ${_hp}() return ({})[nil] end
-local ${_isC} = pcall(function() return debug and debug.info end)
--- Detect if a function has been hooked (executor 'hookfunction' replaces the
--- closure; on most executors the new closure is a C closure with no source).
+local function ${_report}(reason)
+  -- Silent telemetry hook. Loader/validate-key picks this up and issues 24h HWID ban.
+  pcall(function()
+    ${_env}.__SHADOW_REPORT = ${_env}.__SHADOW_REPORT or {}
+    table.insert(${_env}.__SHADOW_REPORT, { r = reason, t = (os and os.time and os.time()) or 0 })
+  end)
+end
+-- C-vs-Lua introspection (only ONE signal in the score; not enough alone to crash).
 local function ${_dinfo}(fn)
   if not fn then return false end
   local ok, what = pcall(function()
@@ -482,12 +486,11 @@ local function ${_dinfo}(fn)
     return nil
   end)
   if not ok then return false end
-  -- Original game.HttpGet / request are C functions ('what' == 'C'). After
-  -- hookfunction wraps with a Lua closure, 'what' becomes 'Lua'/'main'.
-  if what == "Lua" or what == "main" then return true end
-  return false
+  return what == "Lua" or what == "main"
 end
 local function ${_chk}()
+  local score = 0
+  -- Hard signals (each = instant fail)
   if ${_probe} ~= ${_sentinel} then return ${_trap}() end
   if rawequal == nil then return ${_trap}() end
   if not rawequal(${_gf}, getfenv) then return ${_trap}() end
@@ -495,31 +498,59 @@ local function ${_chk}()
   if not rawequal(${_rg}, rawget) then return ${_trap}() end
   if not rawequal(${_sm}, setmetatable) then return ${_trap}() end
   if not rawequal(${_ls}, (loadstring or load)) then return ${_trap}() end
-  -- Detect HttpGet / request hookers (the exact crack technique from leaked cache dumpers)
+  -- Soft signals (combined; threshold = 3)
   pcall(function()
-    local g = game
+    local g = rawget(${_env}, "game")
+    local hookfn = rawget(${_env}, "hookfunction") or rawget(${_env}, "replaceclosure")
+    local writef = rawget(${_env}, "writefile")
+    local listf  = rawget(${_env}, "listfiles")
+    local isfold = rawget(${_env}, "isfolder")
+    local gconns = rawget(${_env}, "getconnections")
+    local hookmm = rawget(${_env}, "hookmetamethod")
+    local getgc  = rawget(${_env}, "getgc")
+    local getup  = rawget(${_env}, "getupvalues") or rawget(${_env}, "getupvalue")
+    local getreg = rawget(${_env}, "getreg") or rawget(${_env}, "getregistry")
+    -- Filesystem dump primitives present (cache dumper requires them)
+    if writef and (listf or isfold) then score = score + 1 end
+    -- HttpGet looks hooked AND filesystem dump primitives are present = cache dumper signature
     if g and typeof and typeof(g) == "Instance" then
-      if ${_dinfo}(g.HttpGet) then ${_hp}() end
-      if ${_dinfo}(g.HttpGetAsync) then ${_hp}() end
-      if ${_dinfo}(g.HttpPost) then ${_hp}() end
+      local httpHooked = ${_dinfo}(g.HttpGet) or ${_dinfo}(g.HttpGetAsync)
+      if httpHooked and writef then score = score + 3 end
+      if httpHooked and hookfn then score = score + 2 end
     end
-    local rq = rawget(getfenv(), "request") or rawget(getfenv(), "http_request")
-    if rq and ${_dinfo}(rq) then ${_hp}() end
-    local syn = rawget(getfenv(), "syn")
-    if syn and type(syn) == "table" and syn.request and ${_dinfo}(syn.request) then ${_hp}() end
-    -- getconnections / hookmetamethod presence is fine alone, but if combined
-    -- with a hooked HttpGet it's a near-certain crack environment.
-    local gc = rawget(getfenv(), "getconnections")
-    local hm = rawget(getfenv(), "hookmetamethod")
-    if gc and hm and g and ${_dinfo}(g.HttpGet) then ${_hp}() end
+    -- request / syn.request hooked
+    local rq = rawget(${_env}, "request") or rawget(${_env}, "http_request")
+    if rq and ${_dinfo}(rq) and writef then score = score + 3 end
+    local syn = rawget(${_env}, "syn")
+    if syn and type(syn) == "table" and syn.request and ${_dinfo}(syn.request) and writef then
+      score = score + 3
+    end
+    -- Upvalue / GC enumeration combined with hookfunction = active reverse-engineering session
+    if hookfn and (getup or getgc or getreg) and gconns and hookmm then
+      score = score + 2
+    end
   end)
+  if score >= 3 then
+    ${_report}("crack_score=" .. tostring(score))
+    -- DELAYED sabotage: corrupt state silently after dump completes.
+    pcall(function()
+      if task and task.delay then
+        task.delay(3 + math.random() * 4, function()
+          -- Corrupt critical globals; dumper output is now unrunnable.
+          pcall(function() ${_env}.string = ${_sentinel} end)
+          pcall(function() ${_env}.table = ${_sentinel} end)
+          ${_trap}()
+        end)
+      else
+        ${_trap}()
+      end
+    end)
+  end
 end
 ${_chk}()
-pcall(${_chk})
--- Re-arm the check on a deferred tick so executors that hook AFTER load also get caught.
+-- Re-arm once on next tick (catches hooks installed AFTER initial load).
 pcall(function()
   if task and task.defer then task.defer(${_chk}) end
-  if task and task.delay then task.delay(0.1, ${_chk}); task.delay(2, ${_chk}) end
 end)
 `.trim();
 }
