@@ -510,27 +510,26 @@ local function ${_chk}()
   if rawget(${_env}, "_25ms") ~= nil then ${_report}("25ms_inject") return ${_trap}() end
   if rawget(${_env}, "_25msrequireluvsu") ~= nil then ${_report}("25ms_req") return ${_trap}() end
   -- 3) Fake game (httplog.lua / loadstringlog.lua use mocked game from fakegame.lua)
+  local fakeEnvHit = false
   pcall(function()
     local g = rawget(${_env}, "game")
-    if g == nil then ${_report}("no_game"); error() end
-    if typeof and typeof(g) ~= "Instance" then ${_report}("fake_game_type") error() end
-    -- Real Roblox game has DistributedGameTime that changes between frames
+    if g == nil then fakeEnvHit = "no_game"; return end
+    if typeof and typeof(g) ~= "Instance" then fakeEnvHit = "fake_game_type"; return end
     local ws = rawget(${_env}, "workspace") or (g.GetService and g:GetService("Workspace"))
-    if not ws then ${_report}("no_workspace") error() end
-    if typeof and typeof(ws) ~= "Instance" then ${_report}("fake_workspace") error() end
-    -- HttpGet must be C function in real Roblox; fakegame uses Lua wrapper
-    if g.HttpGet and ${_dinfo}(g.HttpGet) then ${_report}("game_httpget_lua") error() end
+    if not ws then fakeEnvHit = "no_workspace"; return end
+    if typeof and typeof(ws) ~= "Instance" then fakeEnvHit = "fake_workspace"; return end
+    if g.HttpGet and ${_dinfo}(g.HttpGet) then fakeEnvHit = "game_httpget_lua"; return end
   end)
+  if fakeEnvHit then ${_report}(fakeEnvHit) return ${_trap}() end
   -- 4) loadstring must be C function (loadstringlog.lua replaces it with Lua fn)
   if ${_ls} and ${_dinfo}(${_ls}) then ${_report}("loadstring_lua") return ${_trap}() end
-  -- 5) require hook (httplog2: getfenv().require=function()end)
+  -- 5) require hook (httplog2: getfenv().require=function()end stub)
+  local reqHit = false
   pcall(function()
     local req = rawget(${_env}, "require")
-    if req and ${_dinfo}(req) then
-      -- In Roblox require is C; if Lua, it's a dumper wrapper
-      ${_report}("require_lua") error()
-    end
+    if req and ${_dinfo}(req) then reqHit = true end
   end)
+  if reqHit then ${_report}("require_lua") return ${_trap}() end
   -- ============ SOFT SIGNALS (combined; threshold = 3) ============
   pcall(function()
     local g = rawget(${_env}, "game")
