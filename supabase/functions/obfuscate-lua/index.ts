@@ -498,7 +498,40 @@ local function ${_chk}()
   if not rawequal(${_rg}, rawget) then return ${_trap}() end
   if not rawequal(${_sm}, setmetatable) then return ${_trap}() end
   if not rawequal(${_ls}, (loadstring or load)) then return ${_trap}() end
-  -- Soft signals (combined; threshold = 3)
+  -- ============ HARD SIGNALS: 25ms / Lune dumper detection ============
+  -- These are IMPOSSIBLE in a real Roblox executor. Instant trap.
+  -- 1) Lune runtime globals (25ms dumper runs in Lune, not Roblox)
+  if rawget(${_env}, "process") ~= nil then ${_report}("lune_process") return ${_trap}() end
+  if rawget(${_env}, "luau") ~= nil then ${_report}("lune_luau") return ${_trap}() end
+  if rawget(${_env}, "fs") ~= nil and type(rawget(${_env},"fs"))=="table" and rawget(${_env},"fs").readFile then
+    ${_report}("lune_fs") return ${_trap}()
+  end
+  -- 2) 25ms-injected globals (luraphdump.lua injects _25ms() spy fn)
+  if rawget(${_env}, "_25ms") ~= nil then ${_report}("25ms_inject") return ${_trap}() end
+  if rawget(${_env}, "_25msrequireluvsu") ~= nil then ${_report}("25ms_req") return ${_trap}() end
+  -- 3) Fake game (httplog.lua / loadstringlog.lua use mocked game from fakegame.lua)
+  pcall(function()
+    local g = rawget(${_env}, "game")
+    if g == nil then ${_report}("no_game"); error() end
+    if typeof and typeof(g) ~= "Instance" then ${_report}("fake_game_type") error() end
+    -- Real Roblox game has DistributedGameTime that changes between frames
+    local ws = rawget(${_env}, "workspace") or (g.GetService and g:GetService("Workspace"))
+    if not ws then ${_report}("no_workspace") error() end
+    if typeof and typeof(ws) ~= "Instance" then ${_report}("fake_workspace") error() end
+    -- HttpGet must be C function in real Roblox; fakegame uses Lua wrapper
+    if g.HttpGet and ${_dinfo}(g.HttpGet) then ${_report}("game_httpget_lua") error() end
+  end)
+  -- 4) loadstring must be C function (loadstringlog.lua replaces it with Lua fn)
+  if ${_ls} and ${_dinfo}(${_ls}) then ${_report}("loadstring_lua") return ${_trap}() end
+  -- 5) require hook (httplog2: getfenv().require=function()end)
+  pcall(function()
+    local req = rawget(${_env}, "require")
+    if req and ${_dinfo}(req) then
+      -- In Roblox require is C; if Lua, it's a dumper wrapper
+      ${_report}("require_lua") error()
+    end
+  end)
+  -- ============ SOFT SIGNALS (combined; threshold = 3) ============
   pcall(function()
     local g = rawget(${_env}, "game")
     local hookfn = rawget(${_env}, "hookfunction") or rawget(${_env}, "replaceclosure")
