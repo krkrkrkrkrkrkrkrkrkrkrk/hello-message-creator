@@ -521,15 +521,6 @@ local function ${_chk}()
     if g.HttpGet and ${_dinfo}(g.HttpGet) then fakeEnvHit = "game_httpget_lua"; return end
   end)
   if fakeEnvHit then ${_report}(fakeEnvHit) return ${_trap}() end
-  -- 4) loadstring must be C function (loadstringlog.lua replaces it with Lua fn)
-  if ${_ls} and ${_dinfo}(${_ls}) then ${_report}("loadstring_lua") return ${_trap}() end
-  -- 5) require hook (httplog2: getfenv().require=function()end stub)
-  local reqHit = false
-  pcall(function()
-    local req = rawget(${_env}, "require")
-    if req and ${_dinfo}(req) then reqHit = true end
-  end)
-  if reqHit then ${_report}("require_lua") return ${_trap}() end
   -- ============ SOFT SIGNALS (combined; threshold = 3) ============
   pcall(function()
     local g = rawget(${_env}, "game")
