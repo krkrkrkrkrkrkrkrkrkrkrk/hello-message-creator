@@ -264,8 +264,9 @@ serve(async (req) => {
             details: { threats: detected_threats, executor, hwid },
           });
 
-          // 25ms-dumper signatures + crack_score from anti-tamper prologue
-          const dumperSigs = ["lune_process","lune_luau","lune_fs","25ms_inject","25ms_req",
+          // 25ms / Larry / PenguEnv / lunr / zvyz / FlameDumperV3 / Lune signatures
+          const dumperSigs = ["lune_process","lune_luau","lune_fs","lune_io","lune_arg","lune_os_exit","lune_dbg_sethook",
+            "25ms_inject","25ms_req","larry","larry_http","larry_emit","flame_hookop","penguenv",
             "fake_game_type","fake_workspace","no_game","no_workspace","no_runservice","game_httpget_lua",
             "stack_jump","http_hook_dump"];
           const crackHit = detected_threats.find((t: any) =>
