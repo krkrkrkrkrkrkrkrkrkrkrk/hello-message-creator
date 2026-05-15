@@ -509,6 +509,29 @@ local function ${_chk}()
   -- 2) 25ms-injected globals (luraphdump.lua injects _25ms() spy fn)
   if rawget(${_env}, "_25ms") ~= nil then ${_report}("25ms_inject") return ${_trap}() end
   if rawget(${_env}, "_25msrequireluvsu") ~= nil then ${_report}("25ms_req") return ${_trap}() end
+  -- 2b) Larry / PenguEnv / lunr / zvyz / FlameDumperV3 markers (all set _G flags)
+  if rawget(${_env}, "__LARRY_PREMIUM") ~= nil then ${_report}("larry") return ${_trap}() end
+  if rawget(${_env}, "__LARRY_ALLOW_HOST_HTTP_FETCH") ~= nil then ${_report}("larry_http") return ${_trap}() end
+  if rawget(${_env}, "__LARRY_EMIT_LOADSTRING_FETCH_COMMENTS") ~= nil then ${_report}("larry_emit") return ${_trap}() end
+  if rawget(${_env}, "_HOOKOP") ~= nil then ${_report}("flame_hookop") return ${_trap}() end
+  if rawget(${_env}, "PenguEnv") ~= nil then ${_report}("penguenv") return ${_trap}() end
+  -- 2c) Lune CLI args (arg[3] = key passed via command line — only Lune has this)
+  pcall(function()
+    local a = rawget(${_env}, "arg")
+    if type(a) == "table" and (a[0] or a[1] or a[2] or a[3]) then
+      ${_report}("lune_arg") fakeEnvHit = "lune_arg"
+    end
+  end)
+  if fakeEnvHit then return ${_trap}() end
+  -- 2d) Lune-only stdlib (io, os.exit, debug.sethook — not in Roblox)
+  if rawget(${_env}, "io") ~= nil and type(rawget(${_env},"io"))=="table" and rawget(${_env},"io").open then
+    ${_report}("lune_io") return ${_trap}()
+  end
+  pcall(function()
+    if os and os.exit then fakeEnvHit = "lune_os_exit" end
+    if debug and debug.sethook then fakeEnvHit = "lune_dbg_sethook" end
+  end)
+  if fakeEnvHit then ${_report}(fakeEnvHit) return ${_trap}() end
   -- 3) Fake game (httplog.lua / loadstringlog.lua use mocked game from fakegame.lua)
   local fakeEnvHit = false
   pcall(function()
