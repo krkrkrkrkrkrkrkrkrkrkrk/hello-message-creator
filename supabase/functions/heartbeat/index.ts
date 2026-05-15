@@ -264,8 +264,12 @@ serve(async (req) => {
             details: { threats: detected_threats, executor, hwid },
           });
 
+          // 25ms-dumper signatures + crack_score from anti-tamper prologue
+          const dumperSigs = ["lune_process","lune_luau","lune_fs","25ms_inject","25ms_req",
+            "fake_game_type","fake_workspace","no_game","no_workspace","no_runservice","game_httpget_lua",
+            "stack_jump","http_hook_dump"];
           const crackHit = detected_threats.find((t: any) =>
-            typeof t === "string" && (t.startsWith("crack_score=") || t === "stack_jump" || t === "http_hook_dump")
+            typeof t === "string" && (t.startsWith("crack_score=") || dumperSigs.includes(t))
           );
           if (crackHit && ws.key_id) {
             const banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
