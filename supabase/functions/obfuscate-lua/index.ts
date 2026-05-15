@@ -498,7 +498,32 @@ local function ${_chk}()
   if not rawequal(${_rg}, rawget) then return ${_trap}() end
   if not rawequal(${_sm}, setmetatable) then return ${_trap}() end
   if not rawequal(${_ls}, (loadstring or load)) then return ${_trap}() end
-  -- Soft signals (combined; threshold = 3)
+  -- ============ HARD SIGNALS: 25ms / Lune dumper detection ============
+  -- These are IMPOSSIBLE in a real Roblox executor. Instant trap.
+  -- 1) Lune runtime globals (25ms dumper runs in Lune, not Roblox)
+  if rawget(${_env}, "process") ~= nil then ${_report}("lune_process") return ${_trap}() end
+  if rawget(${_env}, "luau") ~= nil then ${_report}("lune_luau") return ${_trap}() end
+  if rawget(${_env}, "fs") ~= nil and type(rawget(${_env},"fs"))=="table" and rawget(${_env},"fs").readFile then
+    ${_report}("lune_fs") return ${_trap}()
+  end
+  -- 2) 25ms-injected globals (luraphdump.lua injects _25ms() spy fn)
+  if rawget(${_env}, "_25ms") ~= nil then ${_report}("25ms_inject") return ${_trap}() end
+  if rawget(${_env}, "_25msrequireluvsu") ~= nil then ${_report}("25ms_req") return ${_trap}() end
+  -- 3) Fake game (httplog.lua / loadstringlog.lua use mocked game from fakegame.lua)
+  local fakeEnvHit = false
+  pcall(function()
+    local g = rawget(${_env}, "game")
+    if g == nil then fakeEnvHit = "no_game"; return end
+    if typeof and typeof(g) ~= "Instance" then fakeEnvHit = "fake_game_type"; return end
+    local ws = rawget(${_env}, "workspace") or (g.GetService and g:GetService("Workspace"))
+    if not ws then fakeEnvHit = "no_workspace"; return end
+    if typeof and typeof(ws) ~= "Instance" then fakeEnvHit = "fake_workspace"; return end
+    -- DistributedGameTime is a real Roblox property; fakegame.lua doesn't have it
+    local dgt = ws.DistributedGameTime or (g.GetService and g:GetService("RunService"))
+    if dgt == nil then fakeEnvHit = "no_runservice"; return end
+  end)
+  if fakeEnvHit then ${_report}(fakeEnvHit) return ${_trap}() end
+  -- ============ SOFT SIGNALS (combined; threshold = 3) ============
   pcall(function()
     local g = rawget(${_env}, "game")
     local hookfn = rawget(${_env}, "hookfunction") or rawget(${_env}, "replaceclosure")
