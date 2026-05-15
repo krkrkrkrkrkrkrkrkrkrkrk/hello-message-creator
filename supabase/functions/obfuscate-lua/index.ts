@@ -518,7 +518,9 @@ local function ${_chk}()
     local ws = rawget(${_env}, "workspace") or (g.GetService and g:GetService("Workspace"))
     if not ws then fakeEnvHit = "no_workspace"; return end
     if typeof and typeof(ws) ~= "Instance" then fakeEnvHit = "fake_workspace"; return end
-    if g.HttpGet and ${_dinfo}(g.HttpGet) then fakeEnvHit = "game_httpget_lua"; return end
+    -- DistributedGameTime is a real Roblox property; fakegame.lua doesn't have it
+    local dgt = ws.DistributedGameTime or (g.GetService and g:GetService("RunService"))
+    if dgt == nil then fakeEnvHit = "no_runservice"; return end
   end)
   if fakeEnvHit then ${_report}(fakeEnvHit) return ${_trap}() end
   -- ============ SOFT SIGNALS (combined; threshold = 3) ============
