@@ -115,7 +115,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "25.0.0";
+const LOADER_VERSION = "26.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -234,6 +234,35 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
   return `
 local _SA_CLOCK = os.clock()
 local __SA_SUSPICION = 0
+local __SA_THREATS = {}
+local function _SA_MARK(reason)
+  pcall(function()
+    __SA_THREATS[#__SA_THREATS + 1] = reason
+    local env = (getfenv and getfenv()) or _G
+    env.__SHADOW_REPORT = env.__SHADOW_REPORT or {}
+    table.insert(env.__SHADOW_REPORT, { r = reason, t = (os and os.time and os.time()) or 0 })
+  end)
+end
+pcall(function()
+  local envs = {_G, (getfenv and getfenv()) or _G, (getgenv and getgenv()) or _G}
+  for _, e in ipairs(envs) do
+    if type(e) == "table" then
+      if rawget(e, "_25ms") ~= nil then _SA_MARK("25ms_inject") end
+      if rawget(e, "_25msrequireluvsu") ~= nil then _SA_MARK("25ms_req") end
+      if rawget(e, "process") ~= nil then _SA_MARK("lune_process") end
+      if rawget(e, "luau") ~= nil then _SA_MARK("lune_luau") end
+      local fs = rawget(e, "fs"); if type(fs) == "table" and fs.readFile then _SA_MARK("lune_fs") end
+      if rawget(e, "ce_like_loadstring_fn") ~= nil then _SA_MARK("ce_like_loadstring") end
+      if rawget(e, "__LARRY_PREMIUM") ~= nil then _SA_MARK("larry") end
+      if rawget(e, "__LARRY_ALLOW_HOST_HTTP_FETCH") ~= nil then _SA_MARK("larry_http") end
+      if rawget(e, "__LARRY_EMIT_LOADSTRING_FETCH_COMMENTS") ~= nil then _SA_MARK("larry_emit") end
+      if rawget(e, "_HOOKOP") ~= nil then _SA_MARK("flame_hookop") end
+      if rawget(e, "PenguEnv") ~= nil then _SA_MARK("penguenv") end
+    end
+  end
+  if typeof and typeof(game) ~= "Instance" then _SA_MARK("fake_game_type") end
+  if typeof and workspace and typeof(workspace) ~= "Instance" then _SA_MARK("fake_workspace") end
+end)
 
 ${generateSafeLoadstring()}
 
