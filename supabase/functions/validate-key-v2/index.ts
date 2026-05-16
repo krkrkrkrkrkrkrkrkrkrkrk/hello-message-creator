@@ -412,6 +412,7 @@ serve(async (req) => {
             ip_address: clientIP,
             username: roblox_username,
             executor: executor,
+            key_id: keyData.id,
             status: "active",
           })
           .eq("id", existingSession.id);
@@ -423,6 +424,7 @@ serve(async (req) => {
           ip_address: clientIP,
           username: roblox_username,
           executor: executor,
+          key_id: keyData.id,
           status: "active",
           is_connected: true,
         });
