@@ -616,9 +616,10 @@ local ${funcName} = function()
       timezone_offset = os.time(os.date("*t")) - os.time(os.date("!*t")),
       rng1 = math.random(),
       rng2 = math.random(10000, 99999),
+      detected_threats = __SA_THREATS,
       delivery_mode = "binary",
       init_time = _initTime,
-      loader_version = "21"
+      loader_version = "26"
     })
 
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
