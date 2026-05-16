@@ -1029,6 +1029,7 @@ export type Database = {
           id: string
           ip_address: string | null
           is_connected: boolean
+          key_id: string | null
           last_heartbeat: string
           script_id: string | null
           status: string
@@ -1042,6 +1043,7 @@ export type Database = {
           id?: string
           ip_address?: string | null
           is_connected?: boolean
+          key_id?: string | null
           last_heartbeat?: string
           script_id?: string | null
           status?: string
@@ -1055,6 +1057,7 @@ export type Database = {
           id?: string
           ip_address?: string | null
           is_connected?: boolean
+          key_id?: string | null
           last_heartbeat?: string
           script_id?: string | null
           status?: string
