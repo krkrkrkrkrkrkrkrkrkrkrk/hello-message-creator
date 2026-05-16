@@ -134,6 +134,8 @@ serve(async (req) => {
     
     const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, timezone_offset, delivery_mode } = body;
     scriptId = script_id;
+    const detectedThreats = normalizeThreats(body.detected_threats ?? body.threats);
+    const earlyCrackThreat = findCrackThreat(detectedThreats);
     
     // Check delivery mode preference
     const useBinaryDelivery = delivery_mode === "binary" || req.headers.get("x-delivery-mode") === "binary";
@@ -295,17 +297,15 @@ serve(async (req) => {
     keyId = keyData.id;
 
     // ==================== BAN CHECKS (LUARMOR) ====================
-    if (keyData.is_banned) {
+      if (keyData.is_banned) {
       // Check if ban has expired (Luarmor temporary ban feature)
-      if (keyData.ban_expire && new Date(keyData.ban_expire) < new Date()) {
+      if (keyData.ban_expires_at && new Date(keyData.ban_expires_at) < new Date()) {
         // Ban expired - auto-unban
         if (keyData.id) {
           await supabase.from("script_keys").update({
             is_banned: false,
-            status: keyData.hwid ? "active" : "reset",
             ban_reason: null,
-            ban_expire: null,
-            unban_token: null
+            ban_expires_at: null,
           }).eq("id", keyData.id);
           console.log(`Auto-unbanned key ${keyData.id} - ban expired`);
         }
@@ -314,11 +314,30 @@ serve(async (req) => {
           valid: false, 
           banned: true, 
           message: keyData.ban_reason || "Banned",
-          ban_expire: keyData.ban_expire
+          ban_expires_at: keyData.ban_expires_at
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
+    }
+
+    if (earlyCrackThreat && keyData.id) {
+      const banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from("script_keys").update({
+        is_banned: true,
+        ban_expires_at: banUntil,
+        ban_reason: `Auto-ban: ${earlyCrackThreat}`,
+      }).eq("id", keyData.id);
+      await supabase.from("security_events").insert({
+        event_type: "auto_ban_24h",
+        severity: "critical",
+        ip_address: clientIP,
+        script_id,
+        details: { reason: earlyCrackThreat, threats: detectedThreats, key_id: keyData.id, executor, hwid },
+      });
+      return new Response(JSON.stringify({ valid: false, banned: true, message: "Tampering detected. 24h ban.", ban_expires_at: banUntil }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     // ==================== KEY_DAYS ACTIVATION (LUARMOR) ====================
