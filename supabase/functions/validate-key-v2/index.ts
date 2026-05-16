@@ -263,6 +263,7 @@ serve(async (req) => {
         note: null,
         key_days: null,
         activated_at: null,
+        ban_expires_at: null,
         ban_expire: null,
         ban_reason: null,
         hwid_reset_count: 0,
