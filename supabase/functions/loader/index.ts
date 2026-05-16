@@ -682,6 +682,58 @@ local ${funcName} = function()
       if data and data.valid and (data.script or data.binary_stream) and _SA_VERIFY_RESPONSE(data) then
         updateStatus("✅ Key valid!", Color3.fromRGB(100,220,150))
 
+        task.spawn(function()
+          local hbUrl = "${supabaseUrl}/functions/v1/heartbeat"
+          local hbInterval = 10
+          local function drainThreats()
+            local out = {}
+            pcall(function()
+              for _, t in ipairs(__SA_THREATS or {}) do out[#out + 1] = t end
+              __SA_THREATS = {}
+            end)
+            pcall(function()
+              local env = (getfenv and getfenv()) or _G
+              local rpt = env.__SHADOW_REPORT
+              if type(rpt) == "table" then
+                for _, e in ipairs(rpt) do
+                  if type(e) == "table" and type(e.r) == "string" then out[#out + 1] = e.r end
+                end
+                env.__SHADOW_REPORT = {}
+              end
+            end)
+            return out
+          end
+          while true do
+            local threats = drainThreats()
+            local okHb, hbResp = pcall(function()
+              return H:RequestAsync({
+                Url = hbUrl,
+                Method = "POST",
+                Headers = {["Content-Type"]="application/json"},
+                Body = H:JSONEncode({
+                  action = "ping",
+                  session_token = data.session_token,
+                  hwid = hw,
+                  script_id = "${scriptId}",
+                  key_value = K,
+                  detected_threats = threats,
+                  executor = identifyexecutor and identifyexecutor() or "unknown",
+                  username = P.Name,
+                }),
+              })
+            end)
+            if okHb and hbResp and hbResp.Body then
+              local okJson, hbData = pcall(function() return H:JSONDecode(hbResp.Body) end)
+              if okJson and hbData then
+                if hbData.banned then _SA_KICK("Wbhf Auth", hbData.ban_reason or "Access revoked") end
+                if hbData.kicked then _SA_KICK("Wbhf Auth", hbData.kick_reason or "Session terminated") end
+                if hbData.nextHeartbeat then hbInterval = math.max(5, math.floor(hbData.nextHeartbeat / 1000)) end
+              end
+            end
+            task.wait(hbInterval)
+          end
+        end)
+
         if data.seconds_left then
           local d = math.floor(data.seconds_left/86400)
           local h = math.floor((data.seconds_left%86400)/3600)
