@@ -236,16 +236,9 @@ serve(async (req) => {
       is_banned: boolean;
       execution_count: number;
       note: string | null;
-      key_days: number | null;
-      activated_at: string | null;
       ban_expires_at: string | null;
-      ban_expire: string | null;
       ban_reason: string | null;
       hwid_reset_count: number;
-      status: string | null;
-      unban_token: string | null;
-      total_resets: number;
-      last_reset: string | null;
     }
     
     let keyData: KeyDataType;
@@ -264,16 +257,9 @@ serve(async (req) => {
         is_banned: false,
         execution_count: 0,
         note: null,
-        key_days: null,
-        activated_at: null,
         ban_expires_at: null,
-        ban_expire: null,
         ban_reason: null,
         hwid_reset_count: 0,
-        status: null,
-        unban_token: null,
-        total_resets: 0,
-        last_reset: null
       };
     } else {
       // Validate key - include all Luarmor fields
@@ -343,19 +329,6 @@ serve(async (req) => {
       return new Response(JSON.stringify({ valid: false, banned: true, message: "Tampering detected. 24h ban.", ban_expires_at: banUntil }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
-    }
-
-    // ==================== KEY_DAYS ACTIVATION (LUARMOR) ====================
-    // If key has key_days but no activated_at, this is first use - activate it
-    if (keyData.key_days && !keyData.activated_at && keyData.id) {
-      const activationResult = await supabase.rpc("activate_key_on_first_use", {
-        p_key_id: keyData.id
-      });
-      if (activationResult.data?.expires_at) {
-        keyData.expires_at = activationResult.data.expires_at;
-        keyData.activated_at = activationResult.data.activated_at;
-        console.log(`Key activated with key_days: ${keyData.key_days} days, expires: ${keyData.expires_at}`);
-      }
     }
 
     if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
