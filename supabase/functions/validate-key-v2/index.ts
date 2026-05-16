@@ -53,6 +53,22 @@ function fastHash32Bytes(input: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+const DUMPER_SIGNATURES = new Set([
+  "lune_process", "lune_luau", "lune_fs", "lune_io", "lune_arg", "lune_os_exit", "lune_dbg_sethook",
+  "25ms_inject", "25ms_req", "larry", "larry_http", "larry_emit", "flame_hookop", "penguenv",
+  "fake_game_type", "fake_workspace", "no_game", "no_workspace", "no_runservice", "game_httpget_lua",
+  "stack_jump", "http_hook_dump", "ce_like_loadstring", "cache_dumper_fs", "loadstring_lua", "require_lua",
+]);
+
+function normalizeThreats(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((t): t is string => typeof t === "string").map((t) => t.slice(0, 80));
+}
+
+function findCrackThreat(threats: string[]): string | undefined {
+  return threats.find((t) => t.startsWith("crack_score=") || DUMPER_SIGNATURES.has(t));
+}
+
 serve(async (req) => {
   const startTime = Date.now();
   let statusCode = 200;
