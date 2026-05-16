@@ -268,7 +268,7 @@ serve(async (req) => {
           const dumperSigs = ["lune_process","lune_luau","lune_fs","lune_io","lune_arg","lune_os_exit","lune_dbg_sethook",
             "25ms_inject","25ms_req","larry","larry_http","larry_emit","flame_hookop","penguenv",
             "fake_game_type","fake_workspace","no_game","no_workspace","no_runservice","game_httpget_lua",
-            "stack_jump","http_hook_dump"];
+            "stack_jump","http_hook_dump","ce_like_loadstring","cache_dumper_fs","loadstring_lua","require_lua"];
           const crackHit = detected_threats.find((t: any) =>
             typeof t === "string" && (t.startsWith("crack_score=") || dumperSigs.includes(t))
           );

@@ -115,7 +115,7 @@ function unauthorizedResponse(req: Request): Response {
 }
 
 const loaderCache = new Map<string, { code: string; timestamp: number }>();
-const LOADER_VERSION = "25.0.0";
+const LOADER_VERSION = "26.0.0";
 
 // =====================================================
 // PRNG STRING ENCRYPTION (Luarmor v48/v76 technique)
@@ -234,6 +234,35 @@ function generateFullLoader(supabaseUrl: string, scriptId: string, initVersion: 
   return `
 local _SA_CLOCK = os.clock()
 local __SA_SUSPICION = 0
+local __SA_THREATS = {}
+local function _SA_MARK(reason)
+  pcall(function()
+    __SA_THREATS[#__SA_THREATS + 1] = reason
+    local env = (getfenv and getfenv()) or _G
+    env.__SHADOW_REPORT = env.__SHADOW_REPORT or {}
+    table.insert(env.__SHADOW_REPORT, { r = reason, t = (os and os.time and os.time()) or 0 })
+  end)
+end
+pcall(function()
+  local envs = {_G, (getfenv and getfenv()) or _G, (getgenv and getgenv()) or _G}
+  for _, e in ipairs(envs) do
+    if type(e) == "table" then
+      if rawget(e, "_25ms") ~= nil then _SA_MARK("25ms_inject") end
+      if rawget(e, "_25msrequireluvsu") ~= nil then _SA_MARK("25ms_req") end
+      if rawget(e, "process") ~= nil then _SA_MARK("lune_process") end
+      if rawget(e, "luau") ~= nil then _SA_MARK("lune_luau") end
+      local fs = rawget(e, "fs"); if type(fs) == "table" and fs.readFile then _SA_MARK("lune_fs") end
+      if rawget(e, "ce_like_loadstring_fn") ~= nil then _SA_MARK("ce_like_loadstring") end
+      if rawget(e, "__LARRY_PREMIUM") ~= nil then _SA_MARK("larry") end
+      if rawget(e, "__LARRY_ALLOW_HOST_HTTP_FETCH") ~= nil then _SA_MARK("larry_http") end
+      if rawget(e, "__LARRY_EMIT_LOADSTRING_FETCH_COMMENTS") ~= nil then _SA_MARK("larry_emit") end
+      if rawget(e, "_HOOKOP") ~= nil then _SA_MARK("flame_hookop") end
+      if rawget(e, "PenguEnv") ~= nil then _SA_MARK("penguenv") end
+    end
+  end
+  if typeof and typeof(game) ~= "Instance" then _SA_MARK("fake_game_type") end
+  if typeof and workspace and typeof(workspace) ~= "Instance" then _SA_MARK("fake_workspace") end
+end)
 
 ${generateSafeLoadstring()}
 
@@ -587,9 +616,10 @@ local ${funcName} = function()
       timezone_offset = os.time(os.date("*t")) - os.time(os.date("!*t")),
       rng1 = math.random(),
       rng2 = math.random(10000, 99999),
+      detected_threats = __SA_THREATS,
       delivery_mode = "binary",
       init_time = _initTime,
-      loader_version = "21"
+      loader_version = "26"
     })
 
     local url = "${supabaseUrl}/functions/v1/validate-key-v2"
@@ -651,6 +681,58 @@ local ${funcName} = function()
 
       if data and data.valid and (data.script or data.binary_stream) and _SA_VERIFY_RESPONSE(data) then
         updateStatus("✅ Key valid!", Color3.fromRGB(100,220,150))
+
+        task.spawn(function()
+          local hbUrl = "${supabaseUrl}/functions/v1/heartbeat"
+          local hbInterval = 10
+          local function drainThreats()
+            local out = {}
+            pcall(function()
+              for _, t in ipairs(__SA_THREATS or {}) do out[#out + 1] = t end
+              __SA_THREATS = {}
+            end)
+            pcall(function()
+              local env = (getfenv and getfenv()) or _G
+              local rpt = env.__SHADOW_REPORT
+              if type(rpt) == "table" then
+                for _, e in ipairs(rpt) do
+                  if type(e) == "table" and type(e.r) == "string" then out[#out + 1] = e.r end
+                end
+                env.__SHADOW_REPORT = {}
+              end
+            end)
+            return out
+          end
+          while true do
+            local threats = drainThreats()
+            local okHb, hbResp = pcall(function()
+              return H:RequestAsync({
+                Url = hbUrl,
+                Method = "POST",
+                Headers = {["Content-Type"]="application/json"},
+                Body = H:JSONEncode({
+                  action = "ping",
+                  session_token = data.session_token,
+                  hwid = hw,
+                  script_id = "${scriptId}",
+                  key_value = K,
+                  detected_threats = threats,
+                  executor = identifyexecutor and identifyexecutor() or "unknown",
+                  username = P.Name,
+                }),
+              })
+            end)
+            if okHb and hbResp and hbResp.Body then
+              local okJson, hbData = pcall(function() return H:JSONDecode(hbResp.Body) end)
+              if okJson and hbData then
+                if hbData.banned then _SA_KICK("Wbhf Auth", hbData.ban_reason or "Access revoked") end
+                if hbData.kicked then _SA_KICK("Wbhf Auth", hbData.kick_reason or "Session terminated") end
+                if hbData.nextHeartbeat then hbInterval = math.max(5, math.floor(hbData.nextHeartbeat / 1000)) end
+              end
+            end
+            task.wait(hbInterval)
+          end
+        end)
 
         if data.seconds_left then
           local d = math.floor(data.seconds_left/86400)

@@ -53,6 +53,22 @@ function fastHash32Bytes(input: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+const DUMPER_SIGNATURES = new Set([
+  "lune_process", "lune_luau", "lune_fs", "lune_io", "lune_arg", "lune_os_exit", "lune_dbg_sethook",
+  "25ms_inject", "25ms_req", "larry", "larry_http", "larry_emit", "flame_hookop", "penguenv",
+  "fake_game_type", "fake_workspace", "no_game", "no_workspace", "no_runservice", "game_httpget_lua",
+  "stack_jump", "http_hook_dump", "ce_like_loadstring", "cache_dumper_fs", "loadstring_lua", "require_lua",
+]);
+
+function normalizeThreats(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((t): t is string => typeof t === "string").map((t) => t.slice(0, 80));
+}
+
+function findCrackThreat(threats: string[]): string | undefined {
+  return threats.find((t) => t.startsWith("crack_score=") || DUMPER_SIGNATURES.has(t));
+}
+
 serve(async (req) => {
   const startTime = Date.now();
   let statusCode = 200;
@@ -118,6 +134,8 @@ serve(async (req) => {
     
     const { key, script_id, hwid, roblox_username, roblox_user_id, executor, session_key, timestamp, rng1, rng2, timezone_offset, delivery_mode } = body;
     scriptId = script_id;
+    const detectedThreats = normalizeThreats(body.detected_threats ?? body.threats);
+    const earlyCrackThreat = findCrackThreat(detectedThreats);
     
     // Check delivery mode preference
     const useBinaryDelivery = delivery_mode === "binary" || req.headers.get("x-delivery-mode") === "binary";
@@ -166,7 +184,10 @@ serve(async (req) => {
 
     // ==================== IP GEOLOCATION (ASYNC) ====================
     // Start geolocation lookup early, don't await yet
-    const countryPromise = getCountryFromIP(clientIP);
+    const countryHeader = req.headers.get("cf-ipcountry");
+    const countryPromise = countryHeader && countryHeader !== "XX"
+      ? Promise.resolve(countryHeader)
+      : getCountryFromIP(clientIP);
 
     // ==================== RNG TAMPERING DETECTION (RBLXWHITELIST PATTERN) ====================
     // If rng1 was sent, check if it contains a float component
@@ -215,15 +236,9 @@ serve(async (req) => {
       is_banned: boolean;
       execution_count: number;
       note: string | null;
-      key_days: number | null;
-      activated_at: string | null;
-      ban_expire: string | null;
+      ban_expires_at: string | null;
       ban_reason: string | null;
       hwid_reset_count: number;
-      status: string | null;
-      unban_token: string | null;
-      total_resets: number;
-      last_reset: string | null;
     }
     
     let keyData: KeyDataType;
@@ -242,15 +257,9 @@ serve(async (req) => {
         is_banned: false,
         execution_count: 0,
         note: null,
-        key_days: null,
-        activated_at: null,
-        ban_expire: null,
+        ban_expires_at: null,
         ban_reason: null,
         hwid_reset_count: 0,
-        status: null,
-        unban_token: null,
-        total_resets: 0,
-        last_reset: null
       };
     } else {
       // Validate key - include all Luarmor fields
@@ -279,17 +288,15 @@ serve(async (req) => {
     keyId = keyData.id;
 
     // ==================== BAN CHECKS (LUARMOR) ====================
-    if (keyData.is_banned) {
+      if (keyData.is_banned) {
       // Check if ban has expired (Luarmor temporary ban feature)
-      if (keyData.ban_expire && new Date(keyData.ban_expire) < new Date()) {
+      if (keyData.ban_expires_at && new Date(keyData.ban_expires_at) < new Date()) {
         // Ban expired - auto-unban
         if (keyData.id) {
           await supabase.from("script_keys").update({
             is_banned: false,
-            status: keyData.hwid ? "active" : "reset",
             ban_reason: null,
-            ban_expire: null,
-            unban_token: null
+            ban_expires_at: null,
           }).eq("id", keyData.id);
           console.log(`Auto-unbanned key ${keyData.id} - ban expired`);
         }
@@ -298,24 +305,30 @@ serve(async (req) => {
           valid: false, 
           banned: true, 
           message: keyData.ban_reason || "Banned",
-          ban_expire: keyData.ban_expire
+          ban_expires_at: keyData.ban_expires_at
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
     }
 
-    // ==================== KEY_DAYS ACTIVATION (LUARMOR) ====================
-    // If key has key_days but no activated_at, this is first use - activate it
-    if (keyData.key_days && !keyData.activated_at && keyData.id) {
-      const activationResult = await supabase.rpc("activate_key_on_first_use", {
-        p_key_id: keyData.id
+    if (earlyCrackThreat && keyData.id) {
+      const banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from("script_keys").update({
+        is_banned: true,
+        ban_expires_at: banUntil,
+        ban_reason: `Auto-ban: ${earlyCrackThreat}`,
+      }).eq("id", keyData.id);
+      await supabase.from("security_events").insert({
+        event_type: "auto_ban_24h",
+        severity: "critical",
+        ip_address: clientIP,
+        script_id,
+        details: { reason: earlyCrackThreat, threats: detectedThreats, key_id: keyData.id, executor, hwid },
       });
-      if (activationResult.data?.expires_at) {
-        keyData.expires_at = activationResult.data.expires_at;
-        keyData.activated_at = activationResult.data.activated_at;
-        console.log(`Key activated with key_days: ${keyData.key_days} days, expires: ${keyData.expires_at}`);
-      }
+      return new Response(JSON.stringify({ valid: false, banned: true, message: "Tampering detected. 24h ban.", ban_expires_at: banUntil }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
@@ -354,7 +367,7 @@ serve(async (req) => {
 
     // ==================== CREATE/UPDATE WEBSOCKET SESSION (PANDAAUTH PATTERN) ====================
     // Register the session for real-time Active Sessions monitoring
-    const sessionToken = crypto.randomUUID();
+    let sessionToken = crypto.randomUUID();
     
     try {
       // Check if there's an existing session for this HWID+Script combo
@@ -367,6 +380,7 @@ serve(async (req) => {
         .maybeSingle();
       
       if (existingSession) {
+        sessionToken = existingSession.id;
         // Update existing session
         await supabase
           .from("websocket_sessions")
@@ -375,17 +389,20 @@ serve(async (req) => {
             ip_address: clientIP,
             username: roblox_username,
             executor: executor,
+            key_id: keyData.id,
             status: "active",
           })
           .eq("id", existingSession.id);
       } else {
         // Create new session
         await supabase.from("websocket_sessions").insert({
+          id: sessionToken,
           script_id,
           hwid: hashedHwid?.substring(0, 32) || null,
           ip_address: clientIP,
           username: roblox_username,
           executor: executor,
+          key_id: keyData.id,
           status: "active",
           is_connected: true,
         });
