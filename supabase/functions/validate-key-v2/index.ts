@@ -391,7 +391,7 @@ serve(async (req) => {
 
     // ==================== CREATE/UPDATE WEBSOCKET SESSION (PANDAAUTH PATTERN) ====================
     // Register the session for real-time Active Sessions monitoring
-    const sessionToken = crypto.randomUUID();
+    let sessionToken = crypto.randomUUID();
     
     try {
       // Check if there's an existing session for this HWID+Script combo
@@ -404,6 +404,7 @@ serve(async (req) => {
         .maybeSingle();
       
       if (existingSession) {
+        sessionToken = existingSession.id;
         // Update existing session
         await supabase
           .from("websocket_sessions")
@@ -419,6 +420,7 @@ serve(async (req) => {
       } else {
         // Create new session
         await supabase.from("websocket_sessions").insert({
+          id: sessionToken,
           script_id,
           hwid: hashedHwid?.substring(0, 32) || null,
           ip_address: clientIP,
