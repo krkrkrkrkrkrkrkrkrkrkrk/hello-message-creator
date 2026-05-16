@@ -235,6 +235,7 @@ serve(async (req) => {
       note: string | null;
       key_days: number | null;
       activated_at: string | null;
+      ban_expires_at: string | null;
       ban_expire: string | null;
       ban_reason: string | null;
       hwid_reset_count: number;
