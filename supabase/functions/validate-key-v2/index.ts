@@ -184,7 +184,10 @@ serve(async (req) => {
 
     // ==================== IP GEOLOCATION (ASYNC) ====================
     // Start geolocation lookup early, don't await yet
-    const countryPromise = getCountryFromIP(clientIP);
+    const countryHeader = req.headers.get("cf-ipcountry");
+    const countryPromise = countryHeader && countryHeader !== "XX"
+      ? Promise.resolve(countryHeader)
+      : getCountryFromIP(clientIP);
 
     // ==================== RNG TAMPERING DETECTION (RBLXWHITELIST PATTERN) ====================
     // If rng1 was sent, check if it contains a float component
