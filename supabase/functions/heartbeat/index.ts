@@ -264,14 +264,18 @@ serve(async (req) => {
             details: { threats: detected_threats, executor, hwid },
           });
 
-          // 25ms / Larry / PenguEnv / lunr / zvyz / FlameDumperV3 / Lune signatures
-          const dumperSigs = ["lune_process","lune_luau","lune_fs","lune_io","lune_arg","lune_os_exit","lune_dbg_sethook",
-            "25ms_inject","25ms_req","larry","larry_http","larry_emit","flame_hookop","penguenv",
-            "fake_game_type","fake_workspace","no_game","no_workspace","no_runservice","game_httpget_lua",
-            "stack_jump","http_hook_dump","ce_like_loadstring","cache_dumper_fs","loadstring_lua","require_lua"];
-          const crackHit = detected_threats.find((t: any) =>
-            typeof t === "string" && (t.startsWith("crack_score=") || dumperSigs.includes(t))
-          );
+          // HARD signatures only — globals que NÃO existem em executor Roblox real.
+          // Removidos: no_game/no_workspace/no_runservice/loadstring_lua/require_lua/stack_jump/
+          // game_httpget_lua/crack_score (alto falso-positivo em executores legítimos).
+          const dumperSigs = new Set([
+            "lune_process","lune_luau","lune_fs","lune_io","lune_arg","lune_os_exit","lune_dbg_sethook",
+            "25ms_inject","25ms_req",
+            "larry","larry_http","larry_emit",
+            "flame_hookop","penguenv",
+            "fake_game_type","fake_workspace",
+            "http_hook_dump","ce_like_loadstring","cache_dumper_fs",
+          ]);
+          const crackHit = detected_threats.find((t: any) => typeof t === "string" && dumperSigs.has(t));
           if (crackHit && ws.key_id) {
             const banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
             await supabase.from("script_keys")

@@ -53,11 +53,15 @@ function fastHash32Bytes(input: string): string {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+// HARD signatures only — globais que NÃO existem em executor Roblox real.
+// Removidos sinais ambíguos que causavam falso-positivo (no_game, loadstring_lua, etc).
 const DUMPER_SIGNATURES = new Set([
   "lune_process", "lune_luau", "lune_fs", "lune_io", "lune_arg", "lune_os_exit", "lune_dbg_sethook",
-  "25ms_inject", "25ms_req", "larry", "larry_http", "larry_emit", "flame_hookop", "penguenv",
-  "fake_game_type", "fake_workspace", "no_game", "no_workspace", "no_runservice", "game_httpget_lua",
-  "stack_jump", "http_hook_dump", "ce_like_loadstring", "cache_dumper_fs", "loadstring_lua", "require_lua",
+  "25ms_inject", "25ms_req",
+  "larry", "larry_http", "larry_emit",
+  "flame_hookop", "penguenv",
+  "fake_game_type", "fake_workspace",
+  "http_hook_dump", "ce_like_loadstring", "cache_dumper_fs",
 ]);
 
 function normalizeThreats(input: unknown): string[] {
@@ -66,7 +70,8 @@ function normalizeThreats(input: unknown): string[] {
 }
 
 function findCrackThreat(threats: string[]): string | undefined {
-  return threats.find((t) => t.startsWith("crack_score=") || DUMPER_SIGNATURES.has(t));
+  // Sem crack_score — só hard signatures. Soft score nunca bane sozinho.
+  return threats.find((t) => DUMPER_SIGNATURES.has(t));
 }
 
 serve(async (req) => {
