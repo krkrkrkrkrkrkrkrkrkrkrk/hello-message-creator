@@ -43,13 +43,28 @@ const EXECUTOR_PATTERNS = [
   /evon/i, /vegax/i, /jjsploit/i, /nihon/i, /zorara/i, /solara/i, /wave/i,
   /script-?ware/i, /sirius/i, /valyse/i, /codex/i, /swift/i, /awp/i,
   /krampus/i, /macsploit/i, /sirhurt/i, /temple/i, /wininet/i, /winhttp/i,
-  /httpget/i, /exploiter/i, /xeno/i, /nezur/i, /ro-?exec/i, /volt/i, /madium/i,
+  /httpget/i, /xeno/i, /nezur/i, /ro-?exec/i, /volt/i, /madium/i,
 ];
 
-// Luarmor-style: block browsers, accept all executors
+// Known HTTP-library / proxy UAs used by bypass tools (e.g. vercel proxies).
+// These must be rejected even when they don't look like a browser.
+const PROXY_LIB_PATTERNS = [
+  /node-?fetch/i, /axios/i, /undici/i, /got\//i, /\bcurl\//i, /\bwget\b/i,
+  /python-requests/i, /python-urllib/i, /aiohttp/i, /httpx/i, /okhttp/i,
+  /go-http-client/i, /java\//i, /apache-httpclient/i, /postmanruntime/i,
+  /insomnia/i, /\bdeno\//i, /bun\//i, /libwww-perl/i, /restsharp/i,
+  /guzzlehttp/i, /vercel/i, /cloudflare-workers/i, /netlify/i, /lambda/i,
+];
+
+// Strict allowlist: must look like a Roblox HttpGet or a known executor.
 export function isExecutor(ua: string): boolean {
-  // Keep for backward compat but no longer used for blocking
-  return !(/\bmozilla\b|\bchrome\b|\bsafari\b|\bedg\b|\bfirefox\b/i.test(ua));
+  if (!ua) return false;
+  if (PROXY_LIB_PATTERNS.some((re) => re.test(ua))) return false;
+  // Roblox HttpGet sends "Roblox/WinInet" or "RobloxStudio/WinInet"
+  if (/roblox.*(wininet|winhttp|httpget)/i.test(ua)) return true;
+  // Browsers blocked
+  if (/\bmozilla\b|\bchrome\b|\bsafari\b|\bedg\b|\bfirefox\b/i.test(ua)) return false;
+  return EXECUTOR_PATTERNS.some((re) => re.test(ua));
 }
 
 export function getExecutorName(ua: string): string {
@@ -59,7 +74,7 @@ export function getExecutorName(ua: string): string {
     ["fluxus", "Fluxus"], ["krnl", "KRNL"], ["delta", "Delta"],
     ["hydrogen", "Hydrogen"], ["solara", "Solara"], ["wave", "Wave"],
     ["volt", "Volt"], ["xeno", "Xeno"], ["nezur", "Nezur"], ["codex", "Codex"],
-    ["madium", "Madium"],
+    ["madium", "Madium"], ["roblox", "Roblox"],
   ];
   for (const [pattern, name] of map) {
     if (lower.includes(pattern)) return name;
@@ -67,10 +82,41 @@ export function getExecutorName(ua: string): string {
   return "Unknown";
 }
 
+// Detect proxy/relay tools (vercel, cloudflare workers, netlify, etc.)
+// Bypass services like ilovefemboys.vercel.app/api/request?meta=<url> fall here.
+export function isProxyRelay(req: Request): boolean {
+  const ua = (req.headers.get("user-agent") || "");
+  if (PROXY_LIB_PATTERNS.some((re) => re.test(ua))) return true;
+
+  // Vercel / CF Workers / Netlify / AWS Lambda telltale headers.
+  const proxyHeaders = [
+    "x-vercel-id", "x-vercel-deployment-url", "x-vercel-forwarded-for",
+    "cf-worker", "cf-connecting-ip", "x-nf-request-id", "x-amzn-trace-id",
+    "x-render-origin-server", "fly-request-id", "x-railway-request-id",
+    "x-forwarded-host",
+  ];
+  for (const h of proxyHeaders) {
+    if (req.headers.get(h)) {
+      // x-forwarded-host is only suspicious if it doesn't match our host
+      if (h === "x-forwarded-host") {
+        const fwd = req.headers.get(h)!.toLowerCase();
+        const host = (req.headers.get("host") || "").toLowerCase();
+        if (fwd && host && fwd !== host) return true;
+        continue;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 export function isLikelyExecutorRequest(req: Request): boolean {
+  if (isProxyRelay(req)) return false;
+  const ua = (req.headers.get("user-agent") || "");
+  if (!isExecutor(ua)) return false;
   const accept = (req.headers.get("accept") || "").toLowerCase();
   const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
-  return (!accept || accept === "*/*" || accept === "") && 
+  return (!accept || accept === "*/*") &&
     secFetchDest !== "document" && !accept.includes("text/html");
 }
 
