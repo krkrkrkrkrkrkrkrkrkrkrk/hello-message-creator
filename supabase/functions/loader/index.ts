@@ -30,6 +30,7 @@ import {
   corsHeaders,
   isExecutor,
   isLikelyExecutorRequest,
+  isProxyRelay,
   generateRandomVarName,
   generateScriptHash,
   generateSalt,
