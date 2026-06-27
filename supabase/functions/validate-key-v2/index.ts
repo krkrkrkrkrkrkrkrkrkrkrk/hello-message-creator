@@ -114,13 +114,13 @@ serve(async (req) => {
 
   const sig = req.headers.get("x-shadow-sig");
   
-  // Luarmor-style: block browsers, accept everything else (no executor whitelist)
+  // Block browsers AND UA-bypass proxy relays (vercel/cf-workers/axios/node-fetch)
   const accept = (req.headers.get("accept") || "").toLowerCase();
   const secFetchDest = (req.headers.get("sec-fetch-dest") || "").toLowerCase();
   const isBrowser = secFetchDest === "document" || accept.includes("text/html");
-  
-  if (!sig && isBrowser) {
-    await logRequest(401, "Unauthorized - browser access");
+
+  if (!sig && (isBrowser || isProxyRelay(req))) {
+    await logRequest(401, isBrowser ? "Unauthorized - browser access" : "Unauthorized - proxy relay");
     return new Response(JSON.stringify({ valid: false, message: "Access denied." }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
