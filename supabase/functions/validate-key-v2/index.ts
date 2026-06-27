@@ -8,6 +8,7 @@ import {
 import {
   corsHeaders,
   isExecutor,
+  isProxyRelay,
   hashHWID,
   fastHash32,
   generateSalt,
