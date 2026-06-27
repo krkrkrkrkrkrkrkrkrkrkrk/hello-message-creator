@@ -1056,8 +1056,17 @@ serve(async (req) => {
   const rateLimit = await checkRateLimit(`loader:${clientIP}`, 30, 30000);
   if (!rateLimit.allowed) return unauthorizedResponse(req);
 
-  if (!sig && !isExecutor(ua) && !isLikelyExecutorRequest(req)) {
-    return unauthorizedResponse(req);
+  // Block UA-bypass proxies (vercel/cf-workers/netlify relays, axios/node-fetch, etc.)
+  // These are used by tools like ilovefemboys.vercel.app/api/request?meta=<url>
+  if (!sig) {
+    const { isProxyRelay } = await import("../_shared/shared-utils.ts");
+    if (isProxyRelay(req)) {
+      console.log(`[LOADER] Proxy relay blocked: ip=${clientIP} ua="${ua.substring(0,80)}"`);
+      return unauthorizedResponse(req);
+    }
+    if (!isExecutor(ua) && !isLikelyExecutorRequest(req)) {
+      return unauthorizedResponse(req);
+    }
   }
 
   try {
