@@ -88,6 +88,7 @@ const App = () => {
                 <Route path="/support" element={<Support />} />
                 <Route path="/documentation" element={<Documentation />} />
                 <Route path="/docs" element={<DocsPublic />} />
+                <Route path="/docs/macros" element={<DocsMacros />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/redirect" element={<Redirect />} />
                 <Route path="/obfuscator" element={<Obfuscator />} />
