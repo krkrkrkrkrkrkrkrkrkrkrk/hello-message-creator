@@ -1060,7 +1060,6 @@ serve(async (req) => {
   // Block UA-bypass proxies (vercel/cf-workers/netlify relays, axios/node-fetch, etc.)
   // These are used by tools like ilovefemboys.vercel.app/api/request?meta=<url>
   if (!sig) {
-    const { isProxyRelay } = await import("../_shared/shared-utils.ts");
     if (isProxyRelay(req)) {
       console.log(`[LOADER] Proxy relay blocked: ip=${clientIP} ua="${ua.substring(0,80)}"`);
       return unauthorizedResponse(req);
