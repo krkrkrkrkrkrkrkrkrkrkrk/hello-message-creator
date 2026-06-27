@@ -18,6 +18,7 @@ import {
   steganographicWatermark,
   deriveEncryptionKey,
 } from "../_shared/shared-utils.ts";
+import { scanMacros, injectPrelude, type MacroContext } from "../_shared/macro-processor.ts";
 
 // ==================== IP GEOLOCATION ====================
 // Imported from shared-utils: getCountryFromIP
