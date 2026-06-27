@@ -18,6 +18,7 @@ import {
   steganographicWatermark,
   deriveEncryptionKey,
 } from "../_shared/shared-utils.ts";
+import { scanMacros, injectPrelude, type MacroContext } from "../_shared/macro-processor.ts";
 
 // ==================== IP GEOLOCATION ====================
 // Imported from shared-utils: getCountryFromIP
@@ -454,9 +455,36 @@ serve(async (req) => {
       }).catch(e => console.log("Webhook fire-and-forget error:", e));
     }
 
-    // Obfuscate with watermark
+    // Obfuscate with watermark — inject WBHF_* prelude if macros are present
     const keyIdForWatermark = keyData.id || crypto.randomUUID();
-    const obfuscatedScript = obfuscateLua(script.content, keyIdForWatermark);
+    let sourceForObf = script.content;
+    const macroScan = scanMacros(sourceForObf);
+    if (macroScan.hasMacros) {
+      const expiresMs = keyData.expires_at ? new Date(keyData.expires_at).getTime() : 0;
+      const timeLeft = expiresMs ? Math.max(0, Math.floor((expiresMs - Date.now()) / 1000)) : 0;
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+      const ctx: MacroContext = {
+        scriptId: script_id,
+        keyId: keyData.id || "",
+        keyValue: key,
+        hwid: hwid || "",
+        sessionId: sessionToken,
+        sessionCount: 1,
+        scriptName: script.name || "",
+        scriptVersion: 1,
+        scriptExecutions: script.execution_count || 0,
+        userExecutions: keyData.execution_count || 0,
+        discordName: discordUsername || "unknown",
+        discordId: keyData.discord_id || "0",
+        keyNote: keyData.note || "",
+        timeLeft,
+        premium: !keyData.expires_at,
+        apiBase: `${supabaseUrl}/functions/v1`,
+      };
+      sourceForObf = injectPrelude(sourceForObf, ctx);
+      console.log(`Macros detected: prelude injected (${Object.entries(macroScan).filter(([k,v]) => k !== 'hasMacros' && v).map(([k]) => k).join(',')})`);
+    }
+    const obfuscatedScript = obfuscateLua(sourceForObf, keyIdForWatermark);
     
     // Generate salt for client-side key derivation
     const serverTimestamp = Math.floor(Date.now() / 1000);

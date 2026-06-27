@@ -96,6 +96,54 @@ export type Database = {
           },
         ]
       }
+      client_storage: {
+        Row: {
+          created_at: string
+          hwid: string | null
+          id: string
+          key_id: string | null
+          script_id: string
+          storage_id: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          hwid?: string | null
+          id?: string
+          key_id?: string | null
+          script_id: string
+          storage_id: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          hwid?: string | null
+          id?: string
+          key_id?: string | null
+          script_id?: string
+          storage_id?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_storage_key_id_fkey"
+            columns: ["key_id"]
+            isOneToOne: false
+            referencedRelation: "script_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_storage_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_scripts: {
         Row: {
           category: string | null
@@ -193,6 +241,54 @@ export type Database = {
             columns: ["marketplace_product_id"]
             isOneToOne: false
             referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboard_components: {
+        Row: {
+          component_id: string
+          created_at: string
+          direction: string
+          id: string
+          key_id: string | null
+          script_id: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          component_id: string
+          created_at?: string
+          direction?: string
+          id?: string
+          key_id?: string | null
+          script_id: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          component_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          key_id?: string | null
+          script_id?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_components_key_id_fkey"
+            columns: ["key_id"]
+            isOneToOne: false
+            referencedRelation: "script_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_components_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
             referencedColumns: ["id"]
           },
         ]
@@ -775,6 +871,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      secure_proxy_allowlist: {
+        Row: {
+          created_at: string
+          host: string
+          id: string
+          script_id: string
+        }
+        Insert: {
+          created_at?: string
+          host: string
+          id?: string
+          script_id: string
+        }
+        Update: {
+          created_at?: string
+          host?: string
+          id?: string
+          script_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "secure_proxy_allowlist_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "scripts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       security_events: {
         Row: {

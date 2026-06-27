@@ -41,6 +41,7 @@ import Revenue from "./pages/Revenue";
 import Providers from "./pages/Providers";
 import CryptoPaymentPending from "./pages/CryptoPaymentPending";
 import DocsPublic from "./pages/DocsPublic";
+import DocsMacros from "./pages/DocsMacros";
 import DashboardObfuscator from "./pages/DashboardObfuscator";
 import DiscordBot from "./pages/DiscordBot";
 import Terms from "./pages/Terms";
@@ -87,6 +88,7 @@ const App = () => {
                 <Route path="/support" element={<Support />} />
                 <Route path="/documentation" element={<Documentation />} />
                 <Route path="/docs" element={<DocsPublic />} />
+                <Route path="/docs/macros" element={<DocsMacros />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/redirect" element={<Redirect />} />
                 <Route path="/obfuscator" element={<Obfuscator />} />
