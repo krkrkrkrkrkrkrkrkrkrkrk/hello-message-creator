@@ -41,6 +41,7 @@ import Revenue from "./pages/Revenue";
 import Providers from "./pages/Providers";
 import CryptoPaymentPending from "./pages/CryptoPaymentPending";
 import DocsPublic from "./pages/DocsPublic";
+import DocsMacros from "./pages/DocsMacros";
 import DashboardObfuscator from "./pages/DashboardObfuscator";
 import DiscordBot from "./pages/DiscordBot";
 import Terms from "./pages/Terms";
